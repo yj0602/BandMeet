@@ -16,7 +16,7 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
 } from "lucide-react";
-import { supabase } from "@/app/utils/supabase"; // 경로 확인 필요 (@/app/utils/supabase 인지 @/utils/supabase 인지)
+import { supabase } from "@/app/utils/supabase"; // ※ 경로가 안 맞으면 @/app/utils/supabase 로 수정하세요
 import { Reservation } from "@/types";
 import ReservationModal from "./ReservationModal";
 
@@ -25,6 +25,7 @@ interface WeeklyTimetableProps {
   onDateChange: (date: Date) => void;
   onReservationChange: () => void;
   onReservationClick: (res: Reservation) => void;
+  refreshKey?: number; // [핵심] 리렌더링 트리거 추가
 }
 
 export default function WeeklyTimetable({
@@ -32,11 +33,11 @@ export default function WeeklyTimetable({
   onDateChange,
   onReservationChange,
   onReservationClick,
+  refreshKey, // [핵심] props로 받음
 }: WeeklyTimetableProps) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 생성 모달 State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{
     date: Date;
@@ -74,9 +75,10 @@ export default function WeeklyTimetable({
     }
   }, [startDay, endDay]);
 
+  // [핵심] refreshKey가 변하면 데이터를 다시 가져옴 (삭제/추가 즉시 반영)
   useEffect(() => {
     fetchReservations();
-  }, [fetchReservations]);
+  }, [fetchReservations, refreshKey]);
 
   const getReservation = (targetDate: Date, hour: number, minute: number) => {
     const dateStr = format(targetDate, "yyyy-MM-dd");
@@ -102,10 +104,9 @@ export default function WeeklyTimetable({
     setIsCreateModalOpen(true);
   };
 
-  // [핵심] 예약/삭제 성공 시 호출됨 -> 즉시 리렌더링
   const handleChangeSuccess = () => {
-    fetchReservations(); // 1. 타임테이블 데이터 다시 가져오기 (파란 박스 갱신)
-    onReservationChange(); // 2. 부모에게 알리기 (미니 달력 점, 다가오는 예약 갱신)
+    fetchReservations();
+    onReservationChange();
   };
 
   return (
@@ -150,9 +151,9 @@ export default function WeeklyTimetable({
         </div>
       </div>
 
-      {/* [스크롤 통합] 헤더와 바디가 하나의 overflow-y-auto 안에 있음 */}
+      {/* [스크롤 통합] Sticky Header와 Grid Body가 같은 스크롤 영역 사용 */}
       <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-        {/* 요일 헤더 (Sticky로 상단 고정) */}
+        {/* 요일 헤더 (Sticky) */}
         <div className="sticky top-0 z-20 grid grid-cols-8 border-b border-gray-800 bg-[#252525] shadow-sm">
           <div className="p-2 md:p-3 text-center text-[10px] md:text-xs font-semibold text-gray-500 border-r border-gray-800 flex items-center justify-center">
             시간
@@ -190,7 +191,7 @@ export default function WeeklyTimetable({
         <div className="grid grid-cols-8">
           <div className="flex flex-col border-r border-gray-800 bg-[#252525]">
             {timeSlots.map((time) => (
-              // [높이] 모바일 h-12 (48px) / PC h-20 (80px)
+              // [반응형 높이] 모바일 h-12 / PC h-20
               <div
                 key={time}
                 className="h-12 md:h-20 flex items-start justify-center pt-1 md:pt-2 text-[10px] md:text-xs text-gray-500 border-b border-gray-800"
@@ -214,11 +215,10 @@ export default function WeeklyTimetable({
                     onClick={() => onReservationClick(res)}
                     className="flex-1 w-full text-left bg-blue-900/40 border-l-2 md:border-l-4 border-blue-500 p-0.5 md:p-1 overflow-hidden flex flex-col justify-center hover:bg-blue-900/60 transition"
                   >
-                    {/* [목적] 항상 표시 */}
                     <div className="font-bold text-blue-300 text-[10px] md:text-[11px] leading-tight truncate">
                       {res.purpose}
                     </div>
-                    {/* [이름] 모바일(hidden) / PC(block) */}
+                    {/* [모바일 이름 숨김] hidden md:block */}
                     <div className="hidden md:block text-blue-400/70 text-[9px] leading-tight truncate mt-0.5">
                       {res.user_name}
                     </div>
@@ -237,7 +237,6 @@ export default function WeeklyTimetable({
                 );
 
                 return (
-                  // [높이] 부모 컨테이너도 h-12 / h-20
                   <div
                     key={`${day}-${time}`}
                     className="h-12 md:h-20 flex flex-col border-b border-gray-800 relative"
@@ -279,7 +278,7 @@ export default function WeeklyTimetable({
           existingReservations={reservations.filter(
             (r) => r.date === format(selectedSlot.date, "yyyy-MM-dd")
           )}
-          onSuccess={handleChangeSuccess} // 생성 성공 시 호출
+          onSuccess={handleChangeSuccess}
         />
       )}
     </div>

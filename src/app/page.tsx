@@ -28,11 +28,11 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-[#121212] text-gray-200">
-      {/* [수정] 헤더 높이: py-2(모바일), md:py-4(PC) */}
+      {/* 헤더: 높이 최적화 & '예약' -> '대여' */}
       <header className="flex items-center justify-between px-4 py-2 md:px-6 md:py-4 bg-[#1a1a1a] border-b border-gray-800 flex-shrink-0 relative z-40">
         <h1 className="text-xl font-bold text-gray-100 flex items-center gap-2">
-          <span className="md:hidden">📅 예약 시스템</span>
-          <span className="hidden md:inline">📅 동아리방 예약 시스템</span>
+          <span className="md:hidden">📅 대여 시스템</span>
+          <span className="hidden md:inline">📅 동아리방 대여 시스템</span>
         </h1>
         <button
           className="md:hidden p-2 text-gray-300 hover:text-white"
@@ -90,13 +90,15 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* [수정] 메인 패딩: p-3(모바일), md:p-6(PC) */}
+        {/* 메인: 패딩 최적화 */}
         <section className="flex-1 p-3 md:p-6 overflow-hidden bg-[#121212] w-full">
+          {/* [핵심] refreshKey 전달! 이제 삭제하면 바로 반영됩니다. */}
           <WeeklyTimetable
             currentDate={currentDate}
             onDateChange={setCurrentDate}
             onReservationChange={handleDataChange}
             onReservationClick={handleReservationClick}
+            refreshKey={refreshKey}
           />
         </section>
       </main>
