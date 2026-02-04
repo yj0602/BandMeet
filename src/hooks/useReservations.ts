@@ -88,3 +88,23 @@ export const useDeleteReservation = () => {
     },
   });
 };
+
+// [NEW] 리스트 뷰용: 오늘 이후의 모든 예약 가져오기
+export const useAllUpcomingReservations = () => {
+  return useQuery({
+    queryKey: ["reservations", "all_upcoming"], // 키 분리
+    queryFn: async () => {
+      const today = formatToDbDate(new Date());
+      const { data, error } = await supabase
+        .from("reservations")
+        .select("*")
+        .gte("date", today) // 오늘 날짜부터
+        .order("date", { ascending: true })
+        .order("start_time", { ascending: true });
+      // .limit(100) // 필요하면 제한 해제 또는 넉넉하게 설정
+
+      if (error) throw error;
+      return data as Reservation[];
+    },
+  });
+};
