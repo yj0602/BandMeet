@@ -1,4 +1,4 @@
-// app/event/[id]/page.tsx
+// app/event/[eventId]/page.tsx
 
 import EnsembleInfoSection from "@/components/ensemble/EnsembleInfoSection";
 import BackToMainButton from "@/components/common/BackToMainButton";

@@ -1,0 +1,1 @@
+// app/concert/[concertId]/page.tsx
