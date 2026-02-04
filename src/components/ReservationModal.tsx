@@ -1,124 +1,140 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { format, addMinutes, parse } from "date-fns";
+import { format, addMinutes, parse, isSameDay } from "date-fns";
 import { X, Clock, Calendar, User, FileText } from "lucide-react";
-import { supabase } from "@/app/utils/supabase";
-import { Reservation } from "@/types";
+import { useAddReservation, useReservations } from "@/hooks/useReservations"; // Read Hook 추가
+import { formatToDbDate, timeToMinutes } from "@/utils/date";
 
 interface ReservationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedDate: Date;
-  startTime: string;
-  existingReservations: Reservation[];
+  selectedDate: Date; // 초기 날짜
+  startTime: string; // 초기 시간
+  // existingReservations prop 삭제됨 (내부에서 직접 조회)
   onSuccess: () => void;
 }
-
-// [NEW] 시간을 분으로 변환하는 헬퍼 함수
-// DB에서 "14:30:00"이 오든, "14:30"이 오든 정확히 처리
-const toMinutes = (timeStr: string) => {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + m;
-};
 
 export default function ReservationModal({
   isOpen,
   onClose,
-  selectedDate,
-  startTime,
-  existingReservations,
+  selectedDate: initialDate,
+  startTime: initialStartTime,
   onSuccess,
 }: ReservationModalProps) {
+  // 1. 날짜와 시간 모두 상태로 관리
+  const [targetDate, setTargetDate] = useState<Date>(initialDate);
+  const [currentStartTime, setCurrentStartTime] = useState(initialStartTime);
+
   const [userName, setUserName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const MAX_NAME_LENGTH = 8;
   const MAX_PURPOSE_LENGTH = 16;
 
+  // React Query Hooks
+  const addMutation = useAddReservation();
+
+  // [핵심] 선택된 날짜의 예약을 실시간으로 가져옴 (날짜 바꾸면 자동 갱신)
+  const { data: existingReservations = [] } = useReservations(
+    targetDate,
+    targetDate
+  );
+
+  // 모달 열릴 때 초기값 세팅
   useEffect(() => {
     if (isOpen) {
+      setTargetDate(initialDate);
+      setCurrentStartTime(initialStartTime);
       setUserName("");
       setPurpose("");
       setEndTime("");
     }
-  }, [isOpen, startTime]);
+  }, [isOpen, initialDate, initialStartTime]);
 
-  // [수정] 분 단위 숫자 비교로 변경 (가장 확실함)
+  const startTimeOptions = useMemo(() => {
+    const times = [];
+    for (let h = 9; h < 24; h++) {
+      times.push(`${String(h).padStart(2, "0")}:00`);
+      if (h !== 24) times.push(`${String(h).padStart(2, "0")}:30`);
+    }
+    return times.filter((t) => t !== "24:00" && t !== "24:30");
+  }, []);
+
+  // 종료 시간 계산 (중복 검사 로직 포함)
   const availableEndTimes = useMemo(() => {
-    if (!startTime) return [];
-
+    if (!currentStartTime) return [];
     const times: string[] = [];
-    let current = parse(startTime, "HH:mm", new Date());
-    const startMin = toMinutes(startTime);
+    let current = parse(currentStartTime, "HH:mm", new Date());
+    const startMin = timeToMinutes(currentStartTime);
 
     while (true) {
       current = addMinutes(current, 30);
       const timeStr = format(current, "HH:mm");
       const displayTimeStr = timeStr === "00:00" ? "24:00" : timeStr;
-
       const endMin =
-        displayTimeStr === "24:00" ? 1440 : toMinutes(displayTimeStr);
+        displayTimeStr === "24:00" ? 1440 : timeToMinutes(displayTimeStr);
 
-      // 겹침 검사 (숫자 비교)
+      // React Query로 가져온 데이터와 비교
       const isOverlapping = existingReservations.some((r) => {
-        const rStart = toMinutes(r.start_time);
-        const rEnd = toMinutes(r.end_time);
-
-        // (내시작 < 남종료) AND (내종료 > 남시작)
-        // 14:30 < 14:30 은 False이므로 겹치지 않음 -> 정상 동작
+        const rStart = timeToMinutes(r.start_time);
+        const rEnd = timeToMinutes(r.end_time);
         return startMin < rEnd && endMin > rStart;
       });
 
       if (isOverlapping) break;
-
       times.push(displayTimeStr);
-
       if (displayTimeStr === "24:00") break;
       if (times.length > 48) break;
     }
     return times;
-  }, [startTime, existingReservations]);
+  }, [currentStartTime, existingReservations]);
 
+  // 종료 시간 자동 선택
   useEffect(() => {
-    if (isOpen && availableEndTimes.length > 0 && !endTime) {
-      setEndTime(availableEndTimes[0]);
+    if (isOpen && availableEndTimes.length > 0) {
+      if (!endTime || !availableEndTimes.includes(endTime)) {
+        setEndTime(availableEndTimes[0]);
+      }
+    } else {
+      setEndTime("");
     }
-  }, [isOpen, availableEndTimes, endTime]);
+  }, [isOpen, availableEndTimes]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName || !purpose || !endTime) {
+    if (!userName || !purpose || !endTime || !currentStartTime) {
       alert("모든 정보를 입력해주세요.");
       return;
     }
-
-    try {
-      setIsSubmitting(true);
-
-      const { error } = await supabase.from("reservations").insert({
+    addMutation.mutate(
+      {
         user_name: userName,
         purpose: purpose,
-        date: format(selectedDate, "yyyy-MM-dd"),
-        start_time: startTime,
+        date: formatToDbDate(targetDate), // 변경된 날짜 사용
+        start_time: currentStartTime,
         end_time: endTime === "24:00" ? "23:59:59" : endTime,
-      });
+      },
+      {
+        onSuccess: () => {
+          onSuccess();
+          onClose();
+        },
+      }
+    );
+  };
 
-      if (error) throw error;
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error(error);
-      alert("예약 중 오류가 발생했습니다.");
-    } finally {
-      setIsSubmitting(false);
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value) {
+      setTargetDate(new Date(e.target.value));
     }
   };
 
   if (!isOpen) return null;
+
+  const inputBaseStyle =
+    "w-full h-12 bg-[#121212] border border-gray-700 rounded-lg px-3 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition flex items-center";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -137,53 +153,69 @@ export default function ReservationModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* 상단 정보 */}
+          {/* 1. 날짜 선택 (변경 가능) */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-500">날짜</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-gray-500 pointer-events-none" />
+              <input
+                type="date"
+                value={format(targetDate, "yyyy-MM-dd")}
+                onChange={handleDateChange}
+                className={`${inputBaseStyle} pl-10 appearance-none cursor-pointer [color-scheme:dark]`}
+              />
+            </div>
+          </div>
+
+          {/* 2. 시간 선택 */}
           <div className="flex gap-4">
             <div className="flex-1 space-y-1">
-              <label className="text-xs font-semibold text-gray-500">
-                날짜
-              </label>
-              <div className="bg-[#121212] border border-gray-700 rounded-lg px-3 py-2 text-gray-300 text-sm">
-                {format(selectedDate, "yyyy-MM-dd (eee)")}
-              </div>
-            </div>
-            <div className="flex-1 space-y-1">
-              <label className="text-xs font-semibold text-gray-500">
+              <label className="text-xs font-semibold text-gray-400">
                 시작 시간
               </label>
-              <div className="bg-[#121212] border border-gray-700 rounded-lg px-3 py-2 text-gray-300 text-sm flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-500" />
-                {startTime}
+              <div className="relative">
+                <Clock className="absolute left-3 top-3.5 w-5 h-5 text-blue-500 pointer-events-none" />
+                <select
+                  value={currentStartTime}
+                  onChange={(e) => setCurrentStartTime(e.target.value)}
+                  className={`${inputBaseStyle} pl-10 appearance-none cursor-pointer hover:bg-[#1a1a1a]`}
+                >
+                  {startTimeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-1">
+              <label className="text-xs font-semibold text-gray-400">
+                종료 시간
+              </label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-3.5 w-5 h-5 text-gray-500 pointer-events-none" />
+                <select
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className={`${inputBaseStyle} pl-10 appearance-none cursor-pointer hover:bg-[#1a1a1a]`}
+                  disabled={availableEndTimes.length === 0}
+                >
+                  {availableEndTimes.length === 0 ? (
+                    <option>불가</option>
+                  ) : (
+                    availableEndTimes.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
           </div>
 
-          {/* 종료 시간 */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-400">
-              종료 시간
-            </label>
-            <select
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full bg-[#121212] border border-gray-700 rounded-lg px-3 py-2 text-gray-200 focus:outline-none focus:border-blue-500 transition"
-            >
-              {availableEndTimes.length === 0 ? (
-                <option disabled>예약 가능 시간 없음</option>
-              ) : (
-                availableEndTimes.map((t) => (
-                  <option key={t} value={t}>
-                    {t} 까지
-                  </option>
-                ))
-              )}
-            </select>
-            <p className="text-[10px] text-gray-500">
-              * 다음 예약이 있는 시간 전까지만 선택 가능합니다.
-            </p>
-          </div>
-
-          {/* 이름 */}
+          {/* 3. 이름 & 목적 (기존 동일) */}
           <div className="space-y-1">
             <div className="flex justify-between items-center">
               <label className="text-xs font-semibold text-gray-400">
@@ -200,19 +232,18 @@ export default function ReservationModal({
               </span>
             </div>
             <div className="relative">
-              <User className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+              <User className="absolute left-3 top-3.5 w-5 h-5 text-gray-500" />
               <input
                 type="text"
                 maxLength={MAX_NAME_LENGTH}
                 placeholder="홍길동"
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
-                className="w-full bg-[#121212] border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition"
+                className={`${inputBaseStyle} pl-10`}
               />
             </div>
           </div>
 
-          {/* 목적 */}
           <div className="space-y-1">
             <div className="flex justify-between items-center">
               <label className="text-xs font-semibold text-gray-400">
@@ -229,19 +260,19 @@ export default function ReservationModal({
               </span>
             </div>
             <div className="relative">
-              <FileText className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+              <FileText className="absolute left-3 top-3.5 w-5 h-5 text-gray-500" />
               <input
                 type="text"
                 maxLength={MAX_PURPOSE_LENGTH}
                 placeholder="예: 정기공연합주"
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
-                className="w-full bg-[#121212] border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition"
+                className={`${inputBaseStyle} pl-10`}
               />
             </div>
           </div>
 
-          <div className="pt-2 flex gap-3">
+          <div className="pt-4 flex gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -251,10 +282,10 @@ export default function ReservationModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || availableEndTimes.length === 0}
-              className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-400 text-white rounded-lg font-bold transition flex justify-center items-center"
+              disabled={addMutation.isPending || availableEndTimes.length === 0}
+              className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-400 text-white rounded-lg font-bold transition flex justify-center items-center shadow-lg shadow-blue-900/20"
             >
-              {isSubmitting ? "저장 중..." : "예약 완료"}
+              {addMutation.isPending ? "저장 중..." : "예약 완료"}
             </button>
           </div>
         </form>

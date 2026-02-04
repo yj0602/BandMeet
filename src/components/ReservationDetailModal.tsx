@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { X, Trash2, Calendar, Clock, User, FileText } from "lucide-react";
-import { supabase } from "@/app/utils/supabase";
 import { Reservation } from "@/types";
+import { useDeleteReservation } from "@/hooks/useReservations"; // Mutation Hook
 
 interface ReservationDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  reservation: Reservation; // 보여줄 예약 정보
-  onDeleteSuccess: () => void;
+  reservation: Reservation;
+  onDeleteSuccess: () => void; // 모달 닫기용
 }
 
 export default function ReservationDetailModal({
@@ -18,33 +18,23 @@ export default function ReservationDetailModal({
   reservation,
   onDeleteSuccess,
 }: ReservationDetailModalProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
+  // React Query Mutation Hook
+  const deleteMutation = useDeleteReservation();
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (
       !window.confirm(`'${reservation.user_name}'님의 예약을 삭제하시겠습니까?`)
     ) {
       return;
     }
 
-    try {
-      setIsDeleting(true);
-      const { error } = await supabase
-        .from("reservations")
-        .delete()
-        .eq("id", reservation.id);
-
-      if (error) throw error;
-
-      alert("예약이 취소되었습니다.");
-      onDeleteSuccess();
-      onClose();
-    } catch (error) {
-      console.error(error);
-      alert("삭제 중 오류가 발생했습니다.");
-    } finally {
-      setIsDeleting(false);
-    }
+    // Mutation 실행
+    deleteMutation.mutate(reservation.id, {
+      onSuccess: () => {
+        onDeleteSuccess(); // 부모 컴포넌트의 닫기 로직
+        onClose();
+      },
+    });
   };
 
   if (!isOpen) return null;
@@ -99,10 +89,10 @@ export default function ReservationDetailModal({
         <div className="p-4 bg-[#252525] flex gap-3 border-t border-gray-700">
           <button
             onClick={handleDelete}
-            disabled={isDeleting}
+            disabled={deleteMutation.isPending}
             className="flex-1 py-2.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded-lg font-medium transition flex items-center justify-center gap-2"
           >
-            {isDeleting ? (
+            {deleteMutation.isPending ? (
               "삭제 중..."
             ) : (
               <>

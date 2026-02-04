@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   format,
   addDays,
-  startOfWeek,
-  eachDayOfInterval,
   addWeeks,
   subWeeks,
   isSameWeek,
+  eachDayOfInterval,
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
@@ -16,80 +15,58 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
 } from "lucide-react";
-import { supabase } from "@/app/utils/supabase"; // ※ 경로가 안 맞으면 @/app/utils/supabase 로 수정하세요
 import { Reservation } from "@/types";
+import { useReservations } from "@/hooks/useReservations"; // React Query Hook
+import { getKSTStartOfWeek, formatToDbDate, timeToMinutes } from "@/utils/date";
+import { getReservationColor } from "@/utils/colors"; // 색상 유틸
 import ReservationModal from "./ReservationModal";
 
 interface WeeklyTimetableProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
-  onReservationChange: () => void;
   onReservationClick: (res: Reservation) => void;
-  refreshKey?: number; // [핵심] 리렌더링 트리거 추가
 }
 
 export default function WeeklyTimetable({
   currentDate,
   onDateChange,
-  onReservationChange,
   onReservationClick,
-  refreshKey, // [핵심] props로 받음
 }: WeeklyTimetableProps) {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{
     date: Date;
     time: string;
   } | null>(null);
 
+  // 1. 날짜 범위 계산 (React Query 키로 사용됨)
   const { startDay, endDay, weekDays } = useMemo(() => {
-    const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+    const start = getKSTStartOfWeek(currentDate);
     const end = addDays(start, 6);
     const days = eachDayOfInterval({ start, end });
     return { startDay: start, endDay: end, weekDays: days };
   }, [currentDate]);
 
-  const timeSlots = Array.from({ length: 15 }, (_, i) => i + 9);
+  // 2. React Query로 데이터 가져오기 (로딩/캐싱 자동 처리)
+  const { data: reservations = [], isLoading } = useReservations(
+    startDay,
+    endDay
+  );
+
+  const timeSlots = Array.from({ length: 15 }, (_, i) => i + 9); // 09:00 ~ 23:00
 
   const handlePrevWeek = () => onDateChange(subWeeks(currentDate, 1));
   const handleNextWeek = () => onDateChange(addWeeks(currentDate, 1));
   const handleToday = () => onDateChange(new Date());
 
-  const fetchReservations = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("*")
-        .gte("date", format(startDay, "yyyy-MM-dd"))
-        .lte("date", format(endDay, "yyyy-MM-dd"));
-
-      if (error) throw error;
-      setReservations(data || []);
-    } catch (error) {
-      console.error("Error fetching reservations:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [startDay, endDay]);
-
-  // [핵심] refreshKey가 변하면 데이터를 다시 가져옴 (삭제/추가 즉시 반영)
-  useEffect(() => {
-    fetchReservations();
-  }, [fetchReservations, refreshKey]);
-
+  // 특정 시간 슬롯에 해당하는 예약 찾기
   const getReservation = (targetDate: Date, hour: number, minute: number) => {
-    const dateStr = format(targetDate, "yyyy-MM-dd");
+    const dateStr = formatToDbDate(targetDate);
     const currentSlotMinutes = hour * 60 + minute;
 
     return reservations.find((r) => {
       if (r.date !== dateStr) return false;
-      const [startH, startM] = r.start_time.split(":").map(Number);
-      const [endH, endM] = r.end_time.split(":").map(Number);
-      const startMinutes = startH * 60 + startM;
-      const endMinutes = endH * 60 + endM;
+      const startMinutes = timeToMinutes(r.start_time);
+      const endMinutes = timeToMinutes(r.end_time);
       return (
         currentSlotMinutes >= startMinutes && currentSlotMinutes < endMinutes
       );
@@ -104,20 +81,15 @@ export default function WeeklyTimetable({
     setIsCreateModalOpen(true);
   };
 
-  const handleChangeSuccess = () => {
-    fetchReservations();
-    onReservationChange();
-  };
-
   return (
     <div className="flex flex-col h-full bg-[#1E1E1E] text-gray-200 rounded-xl shadow-lg border border-gray-800 overflow-hidden relative">
-      {loading && (
+      {isLoading && (
         <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
         </div>
       )}
 
-      {/* 네비게이션 */}
+      {/* 헤더 (네비게이션) */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-[#252525] flex-shrink-0 z-30 relative">
         <div className="flex items-center gap-2">
           <CalendarIcon className="w-5 h-5 text-blue-400" />
@@ -151,16 +123,14 @@ export default function WeeklyTimetable({
         </div>
       </div>
 
-      {/* [스크롤 통합] Sticky Header와 Grid Body가 같은 스크롤 영역 사용 */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-        {/* 요일 헤더 (Sticky) */}
+      <div className="flex-1 overflow-y-auto overscroll-y-none custom-scrollbar relative">
+        {/* 요일 헤더 */}
         <div className="sticky top-0 z-20 grid grid-cols-8 border-b border-gray-800 bg-[#252525] shadow-sm">
           <div className="p-2 md:p-3 text-center text-[10px] md:text-xs font-semibold text-gray-500 border-r border-gray-800 flex items-center justify-center">
             시간
           </div>
           {weekDays.map((day) => {
-            const isToday =
-              format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+            const isToday = formatToDbDate(day) === formatToDbDate(new Date());
             return (
               <div
                 key={day.toString()}
@@ -189,80 +159,92 @@ export default function WeeklyTimetable({
 
         {/* 그리드 바디 */}
         <div className="grid grid-cols-8">
+          {/* 시간축 */}
           <div className="flex flex-col border-r border-gray-800 bg-[#252525]">
             {timeSlots.map((time) => (
-              // [반응형 높이] 모바일 h-12 / PC h-20
               <div
                 key={time}
-                className="h-12 md:h-20 flex items-start justify-center pt-1 md:pt-2 text-[10px] md:text-xs text-gray-500 border-b border-gray-800"
+                className="h-14 md:h-20 flex items-start justify-center pt-1 md:pt-2 text-[10px] md:text-xs text-gray-500 border-b border-gray-800"
               >
                 <span>{time}:00</span>
               </div>
             ))}
           </div>
 
+          {/* 각 요일별 시간표 */}
           {weekDays.map((day) => (
             <div
               key={day.toString()}
               className="flex flex-col border-r border-gray-800 last:border-r-0"
             >
               {timeSlots.map((time) => {
-                const resTop = getReservation(day, time, 0);
-                const resBottom = getReservation(day, time, 30);
+                // 30분 단위 슬롯 2개 생성
+                return [0, 30].map((minute) => {
+                  const res = getReservation(day, time, minute);
 
-                const renderBookedSlot = (res: Reservation) => (
-                  <button
-                    onClick={() => onReservationClick(res)}
-                    className="flex-1 w-full text-left bg-blue-900/40 border-l-2 md:border-l-4 border-blue-500 p-0.5 md:p-1 overflow-hidden flex flex-col justify-center hover:bg-blue-900/60 transition"
-                  >
-                    <div className="font-bold text-blue-300 text-[10px] md:text-[11px] leading-tight truncate">
-                      {res.purpose}
-                    </div>
-                    {/* [모바일 이름 숨김] hidden md:block */}
-                    <div className="hidden md:block text-blue-400/70 text-[9px] leading-tight truncate mt-0.5">
-                      {res.user_name}
-                    </div>
-                  </button>
-                );
-
-                const renderEmptySlot = (minute: number) => (
-                  <button
-                    className="flex-1 hover:bg-gray-800/50 transition-colors relative group w-full text-left"
-                    onClick={() => handleEmptySlotClick(day, time, minute)}
-                  >
-                    <span className="hidden group-hover:block absolute top-0.5 left-0.5 md:top-1 md:left-1 text-blue-400 text-[10px] font-bold">
-                      +
-                    </span>
-                  </button>
-                );
-
-                return (
-                  <div
-                    key={`${day}-${time}`}
-                    className="h-12 md:h-20 flex flex-col border-b border-gray-800 relative"
-                  >
-                    {resTop ? renderBookedSlot(resTop) : renderEmptySlot(0)}
-                    <div
-                      className={`w-full border-t ${
-                        resTop && resTop === resBottom
-                          ? "border-blue-900/40"
-                          : "border-dashed border-gray-800"
-                      }`}
-                    />
-                    {resBottom ? (
-                      resTop?.id !== resBottom.id ? (
-                        renderBookedSlot(resBottom)
-                      ) : (
+                  // 예약 없음: 빈 슬롯 렌더링
+                  if (!res) {
+                    return (
+                      <div
+                        key={`${time}-${minute}`}
+                        className="h-7 md:h-10 border-b border-gray-800 border-dashed border-gray-800/50 flex"
+                      >
                         <button
-                          onClick={() => onReservationClick(resBottom)}
-                          className="flex-1 w-full text-left bg-blue-900/40 border-l-2 md:border-l-4 border-blue-500 p-0.5 hover:bg-blue-900/60 transition"
-                        />
-                      )
-                    ) : (
-                      renderEmptySlot(30)
-                    )}
-                  </div>
-                );
+                          className="flex-1 hover:bg-gray-800/50 transition-colors relative group w-full text-left"
+                          onClick={() =>
+                            handleEmptySlotClick(day, time, minute)
+                          }
+                        >
+                          <span className="hidden group-hover:block absolute top-0.5 left-0.5 text-blue-400 text-[10px] font-bold">
+                            +
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // 예약 있음: 색상 및 병합 로직 적용
+                  const colors = getReservationColor(res.id);
+                  const currentSlotMinutes = time * 60 + minute;
+                  const startMinutes = timeToMinutes(res.start_time);
+
+                  // [핵심] 예약의 시작 시간인 경우에만 텍스트 표시
+                  const isStartSlot = currentSlotMinutes === startMinutes;
+
+                  return (
+                    <div
+                      key={`${time}-${minute}`}
+                      className={`h-7 md:h-10 border-gray-800 relative p-0.5 md:p-1 flex flex-col justify-center
+                        ${colors.bg} 
+                        ${
+                          isStartSlot
+                            ? `border-l-2 md:border-l-4 ${colors.border}`
+                            : `border-l-2 md:border-l-4 ${colors.border} border-t-0`
+                        }
+                      `}
+                    >
+                      <button
+                        onClick={() => onReservationClick(res)}
+                        className="w-full h-full text-left overflow-hidden outline-none"
+                      >
+                        {isStartSlot && (
+                          <>
+                            <div
+                              className={`font-bold text-[10px] md:text-[11px] leading-tight truncate ${colors.title}`}
+                            >
+                              {res.purpose}
+                            </div>
+                            <div
+                              className={`hidden md:block text-[9px] leading-tight truncate mt-0.5 ${colors.text}`}
+                            >
+                              {res.user_name}
+                            </div>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                });
               })}
             </div>
           ))}
@@ -275,10 +257,8 @@ export default function WeeklyTimetable({
           onClose={() => setIsCreateModalOpen(false)}
           selectedDate={selectedSlot.date}
           startTime={selectedSlot.time}
-          existingReservations={reservations.filter(
-            (r) => r.date === format(selectedSlot.date, "yyyy-MM-dd")
-          )}
-          onSuccess={handleChangeSuccess}
+          // React Query Mutation이 성공하면 자동으로 리렌더링되므로 onSuccess는 비워둬도 됨 (Modal 닫기만 처리)
+          onSuccess={() => setIsCreateModalOpen(false)}
         />
       )}
     </div>

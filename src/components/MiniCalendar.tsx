@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   format,
   startOfMonth,
@@ -14,52 +14,45 @@ import {
   isSameDay,
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { supabase } from "@/app/utils/supabase";
+import { useReservations } from "@/hooks/useReservations";
+import { formatToDbDate } from "@/utils/date";
 
 interface MiniCalendarProps {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
-  refreshKey: number;
+  // refreshKey 삭제됨
 }
 
 export default function MiniCalendar({
   selectedDate,
   onSelectDate,
-  refreshKey,
 }: MiniCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [reservedDates, setReservedDates] = useState<Set<string>>(new Set());
 
-  const days = eachDayOfInterval({
-    start: startOfWeek(startOfMonth(currentMonth)),
-    end: endOfWeek(endOfMonth(currentMonth)),
-  });
-
-  useEffect(() => {
-    const fetchMonthlyReservations = async () => {
-      const startStr = format(startOfMonth(currentMonth), "yyyy-MM-dd");
-      const endStr = format(endOfMonth(currentMonth), "yyyy-MM-dd");
-
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("date")
-        .gte("date", startStr)
-        .lte("date", endStr);
-
-      if (!error && data) {
-        const dates = new Set(data.map((item) => item.date));
-        setReservedDates(dates);
-      }
+  // 1. 현재 달력에 보여질 날짜 범위 계산
+  const { start, end, days } = useMemo(() => {
+    const start = startOfWeek(startOfMonth(currentMonth));
+    const end = endOfWeek(endOfMonth(currentMonth));
+    return {
+      start,
+      end,
+      days: eachDayOfInterval({ start, end }),
     };
+  }, [currentMonth]);
 
-    fetchMonthlyReservations();
-  }, [currentMonth, refreshKey]);
+  // 2. 해당 범위의 예약 데이터 가져오기 (React Query)
+  const { data: reservations = [] } = useReservations(start, end);
+
+  // 3. 예약이 있는 날짜들을 Set으로 변환 (빠른 조회를 위해)
+  const reservedDates = useMemo(() => {
+    return new Set(reservations.map((r) => r.date));
+  }, [reservations]);
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <div className="bg-[#252525] p-4 rounded-xl border border-gray-800 shadow-sm">
+    <div className="bg-[#252525] px-4 py-3 rounded-xl border border-gray-800 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm font-bold text-gray-200 pl-1">
           {format(currentMonth, "yyyy년 M월")}
@@ -90,11 +83,11 @@ export default function MiniCalendar({
 
       <div className="grid grid-cols-7 gap-y-1 gap-x-1">
         {days.map((day) => {
-          const dateStr = format(day, "yyyy-MM-dd");
+          const dateStr = formatToDbDate(day);
           const isSelected = isSameDay(day, selectedDate);
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isToday = isSameDay(day, new Date());
-          const hasEvent = reservedDates.has(dateStr);
+          const hasEvent = reservedDates.has(dateStr); // 점 표시 여부
 
           return (
             <button
@@ -111,16 +104,19 @@ export default function MiniCalendar({
                 ${isToday && !isSelected ? "text-blue-400 font-bold" : ""}
               `}
             >
-              {/* [NEW] 점 표시: 숫자 위쪽(top-1)에 빨간색으로, 선택 여부 상관없이 표시 */}
               {hasEvent && (
                 <div className="absolute top-[4px] w-1 h-1 bg-green-500 rounded-full"></div>
               )}
-
-              {/* 숫자를 살짝 아래로 내림 (pt-1) */}
               <span className="text-xs z-10 pt-1">{format(day, "d")}</span>
             </button>
           );
         })}
+      </div>
+
+      <div className="pt-1 border-t-2 border-gray-800/50 text-center">
+        <p className="text-[11px] text-gray-500">
+          날짜를 눌러 원하는 일자로 이동하세요
+        </p>
       </div>
     </div>
   );

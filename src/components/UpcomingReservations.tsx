@@ -1,46 +1,20 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/app/utils/supabase";
+import React from "react";
 import { format, isToday, isTomorrow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Reservation } from "@/types";
 import { Clock } from "lucide-react";
+import { useUpcomingReservations } from "@/hooks/useReservations"; // Hook import
 
-// [수정] 클릭 핸들러 props 추가
 interface Props {
-  refreshKey: number;
   onItemClick: (reservation: Reservation) => void;
+  // refreshKey 삭제됨
 }
 
-export default function UpcomingReservations({
-  refreshKey,
-  onItemClick,
-}: Props) {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUpcoming = async () => {
-      setLoading(true);
-      const todayStr = format(new Date(), "yyyy-MM-dd");
-
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("*")
-        .gte("date", todayStr)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true })
-        .limit(20);
-
-      if (!error && data) {
-        setReservations(data);
-      }
-      setLoading(false);
-    };
-
-    fetchUpcoming();
-  }, [refreshKey]);
+export default function UpcomingReservations({ onItemClick }: Props) {
+  // React Query Hook 사용
+  const { data: reservations = [], isLoading } = useUpcomingReservations();
 
   const getFriendlyDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -57,7 +31,7 @@ export default function UpcomingReservations({
       </h2>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
-        {loading ? (
+        {isLoading ? (
           <div className="text-center text-xs text-gray-600 py-4">
             로딩 중...
           </div>
@@ -69,7 +43,6 @@ export default function UpcomingReservations({
           reservations.map((res) => (
             <div
               key={res.id}
-              // [수정] 클릭 이벤트 연결 및 커서 포인터 추가
               onClick={() => onItemClick(res)}
               className="bg-[#252525] rounded-lg p-3 border border-gray-800 shadow-sm hover:border-gray-600 hover:bg-[#2a2a2a] transition cursor-pointer"
             >
