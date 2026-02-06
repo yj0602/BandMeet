@@ -1,31 +1,35 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Menu, X, Plus, Calendar, List } from "lucide-react"; // 아이콘 추가
+import { Menu, X, Plus, Calendar, List, Users, Music } from "lucide-react";
 import WeeklyTimetable from "@/components/WeeklyTimetable";
 import MiniCalendar from "@/components/MiniCalendar";
 import UpcomingReservations from "@/components/UpcomingReservations";
 import ReservationDetailModal from "@/components/ReservationDetailModal";
-import ReservationModal from "@/components/ReservationModal";
-import ReservationListView from "@/components/ReservationListView"; // 신규 컴포넌트 import
+import ReservationListView from "@/components/ReservationListView";
 import { Reservation } from "@/types";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
+
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] =
     useState<Reservation | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isFabModalOpen, setIsFabModalOpen] = useState(false);
 
-  // [NEW] 뷰 모드 상태 (timetable | list)
+  // FAB 메뉴 열림/닫힘
+  const [isFabOpen, setIsFabOpen] = useState(false);
+
+  // 뷰 모드 상태 (timetable | list)
   const [viewMode, setViewMode] = useState<"timetable" | "list">("timetable");
 
   useEffect(() => {
     setCurrentDate(new Date());
   }, []);
 
-  // [NEW] 모바일 메뉴 열림/닫힘 시 바디 스크롤 잠금/해제
+  // 모바일 메뉴 열림/닫힘 시 바디 스크롤 잠금/해제
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = "hidden";
@@ -33,11 +37,23 @@ export default function Home() {
       document.body.style.overflow = "unset";
     }
 
-    // 컴포넌트가 사라질 때(언마운트) 안전하게 스크롤 복구
     return () => {
       document.body.style.overflow = "unset";
     };
   }, [isMobileMenuOpen]);
+
+  // FAB 메뉴 열림/닫힘 시 바디 스크롤 잠금/해제 (모바일에서 배경 스크롤 방지)
+  useEffect(() => {
+    if (isFabOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isFabOpen]);
 
   const handleReservationClick = (res: Reservation) => {
     setSelectedReservation(res);
@@ -91,21 +107,13 @@ export default function Home() {
             md:flex 
           `}
         >
-          {/* <div className="md:hidden flex justify-end">
-            <button
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="text-gray-400"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div> */}
           <div className="mt-2">
             <MiniCalendar
               selectedDate={currentDate}
               onSelectDate={(date) => {
                 setCurrentDate(date);
                 setIsMobileMenuOpen(false);
-                setViewMode("timetable"); // 날짜 누르면 시간표로 이동
+                setViewMode("timetable");
               }}
             />
           </div>
@@ -116,15 +124,13 @@ export default function Home() {
 
         {/* 메인 섹션 */}
         <section className="flex-1 flex flex-col overflow-hidden bg-[#121212] w-full relative">
-          {/* [수정] 탭 스위처: 정렬과 크기 개선 */}
-          {/* 1. md:justify-start 제거 -> 항상 중앙 정렬(justify-center) 유지 */}
+          {/* 탭 스위처 */}
           <div className="flex-shrink-0 px-4 pt-2 pb-2 flex justify-center">
             <div className="bg-[#252525] p-1 rounded-lg flex items-center border border-gray-800">
               <button
                 onClick={() => setViewMode("timetable")}
                 className={`
                   flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all
-                  /* 2. PC(md)에서는 좌우 패딩을 2배(px-8)로 늘려서 넓게 표현 */
                   px-4 py-1.5 md:px-8 md:py-2
                   ${
                     viewMode === "timetable"
@@ -140,7 +146,6 @@ export default function Home() {
                 onClick={() => setViewMode("list")}
                 className={`
                   flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all
-                  /* 2. PC(md)에서는 좌우 패딩을 2배(px-8)로 늘려서 넓게 표현 */
                   px-4 py-1.5 md:px-8 md:py-2
                   ${
                     viewMode === "list"
@@ -168,13 +173,101 @@ export default function Home() {
             )}
           </div>
 
+          {/* ===== FAB 메뉴(합주/공연 생성) ===== */}
+          {isFabOpen && (
+            <>
+              {/* 딤 오버레이 + 페이드 */}
+              <div
+                className="fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+                onClick={() => setIsFabOpen(false)}
+              />
+
+              {/* 메뉴 컨테이너 (슬라이드 업 + 페이드) */}
+              <div className="absolute bottom-20 right-6 md:bottom-28 md:right-10 z-40 w-[260px]">
+                <div className="rounded-2xl border border-gray-800 bg-[#1a1a1a]/95 shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200">
+                  <div className="px-4 pt-4 pb-3 border-b border-gray-800">
+                    <div className="text-sm font-bold text-gray-100">새로 만들기</div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      합주 또는 공연을 선택하세요
+                    </div>
+                  </div>
+
+                  <div className="p-2 space-y-2">
+                    {/* 합주 생성 */}
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        router.push("/ensembleCreate/new");
+                      }}
+                      className="w-full group flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-800 bg-[#121212] hover:bg-[#151515] transition"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                        <Users className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-sm font-bold text-gray-100 group-hover:text-white">
+                          합주 생성
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          팀/시간대 잡고 합주 일정 만들기
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                        NEW
+                      </span>
+                    </button>
+
+                    {/* 공연 생성 */}
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        router.push("/concertCreate/new");
+                      }}
+                      className="w-full group flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-800 bg-[#121212] hover:bg-[#151515] transition"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                        <Music className="w-5 h-5 text-purple-300" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-sm font-bold text-gray-100 group-hover:text-white">
+                          공연 생성
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          공연 정보/세트리스트/팀 구성
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-purple-500/10 text-purple-200 border border-purple-500/20">
+                        SET
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="px-3 pb-3">
+                    <button
+                      onClick={() => setIsFabOpen(false)}
+                      className="w-full py-2 rounded-xl text-sm font-semibold text-gray-400 hover:text-gray-200 bg-[#121212] hover:bg-[#151515] border border-gray-800 transition"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* 플로팅 버튼 (항상 표시) */}
           <button
-            onClick={() => setIsFabModalOpen(true)}
-            className="absolute bottom-6 right-6 md:bottom-10 md:right-10 w-12 h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg shadow-blue-900/40 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 z-40"
-            aria-label="예약 추가"
+            onClick={() => setIsFabOpen((prev) => !prev)}
+            className={`absolute bottom-6 right-6 md:bottom-10 md:right-10 w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all z-40
+              ${isFabOpen ? "bg-blue-500 scale-[1.02]" : "bg-blue-600 hover:bg-blue-500 hover:scale-105 active:scale-95"}
+            `}
+            aria-label="생성 메뉴"
           >
-            <Plus className="w-8 h-8" />
+            <Plus
+              className={`w-8 h-8 transition-transform duration-200 ${
+                isFabOpen ? "rotate-45" : ""
+              }`}
+            />
           </button>
         </section>
       </main>
@@ -188,15 +281,6 @@ export default function Home() {
           onDeleteSuccess={() => setIsDetailModalOpen(false)}
         />
       )}
-
-      {/* 예약 생성 모달 */}
-      <ReservationModal
-        isOpen={isFabModalOpen}
-        onClose={() => setIsFabModalOpen(false)}
-        selectedDate={new Date()}
-        startTime="09:00"
-        onSuccess={() => setIsFabModalOpen(false)}
-      />
     </div>
   );
 }

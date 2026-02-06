@@ -270,7 +270,7 @@ export default function ReservationEnsembleCreate() {
               <button
                 type="button"
                 onClick={() => {
-                  // TODO: 뒤로 가기
+                  // TODO: 뒤로 가기 - 추신:common/BackToMainButton.tsx쓰면 뭐든 메인으로 보내주는거 만들어뒀음
                   // router.back() 같은 걸 나중에 연결
                 }}
                 className="flex-1 py-3 bg-[#252525] hover:bg-[#2a2a2a] 

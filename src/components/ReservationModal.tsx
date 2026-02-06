@@ -1,5 +1,5 @@
 "use client";
-
+// 기존에 쓰던 예약 모달, 이제 안쓰지만 일단 내버려 둠
 import React, { useState, useEffect, useMemo } from "react";
 import { format, addMinutes, parse } from "date-fns";
 import { X, Clock, Calendar, User, FileText, Check } from "lucide-react";

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "미케닉스 스케줄러",
+  title: "미케닉스 스케쥴러",
   description: "합주합시다",
 };
 
