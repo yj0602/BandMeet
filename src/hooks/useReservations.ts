@@ -2,13 +2,45 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/utils/supabase";
 import { Reservation } from "@/types";
 import { formatToDbDate } from "@/utils/date";
-import { mockEvents } from "@/mocks/events_mock"; 
 import type { Ensemble } from "@/types/ensemble_detail";
 import type { Concert } from "@/types/concert_detail";
-import { getLocalConcerts, removeLocalConcert } from "@/mocks/local_concert_store"; // 로컬 테스트용
-const USE_MOCK = true;
 
-const mockUserName = "장혁재"; // 모달에 보여줄 임시 예약자
+const mockUserName = "장혁재";
+
+// Supabase에서 가져온 데이터 타입 (DB 원본)
+type ConcertRow = {
+  id: string;
+  title: string;
+  date: string; // DATE 타입 → "YYYY-MM-DD" 문자열로 반환됨
+  start_time: string; // TIME 타입 → "HH:mm:ss" 문자열로 반환됨
+  end_time: string;
+  rehearsal_start_time?: string;
+  rehearsal_end_time?: string;
+  location?: string;
+  created_at: string;
+  updated_at: string;
+  owner_id?: string;
+  kind: string;
+};
+
+// DB TIME 타입("HH:mm:ss")을 "HH:mm"으로 변환
+const formatTime = (time: string): string => {
+  return time.slice(0, 5); // "14:30:00" → "14:30"
+};
+
+// Supabase Row → Concert 타입 변환
+const rowToConcert = (row: ConcertRow): Concert => ({
+  id: row.id,
+  title: row.title,
+  date: row.date,
+  start_time: formatTime(row.start_time),
+  end_time: formatTime(row.end_time),
+  rehearsal_start_time: row.rehearsal_start_time ? formatTime(row.rehearsal_start_time) : undefined,
+  rehearsal_end_time: row.rehearsal_end_time ? formatTime(row.rehearsal_end_time) : undefined,
+  location: row.location,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+});
 
 const ensembleToReservation = (e: Ensemble): Reservation => ({
   id: e.id,
@@ -32,91 +64,72 @@ const concertToReservation = (c: Concert): Reservation => ({
   created_at: c.created_at,
 });
 
-
 // [Read] 특정 기간(주간/월간)의 예약 가져오기
 export const useReservations = (startDate: Date, endDate: Date) => {
   return useQuery({
-    queryKey: [
-      "reservations",
-      formatToDbDate(startDate),
-      formatToDbDate(endDate),
-    ],
+    queryKey: ["reservations", formatToDbDate(startDate), formatToDbDate(endDate)],
     queryFn: async () => {
-      if (USE_MOCK) {
-        const start = formatToDbDate(startDate);
-        const end = formatToDbDate(endDate);
+      const start = formatToDbDate(startDate);
+      const end = formatToDbDate(endDate);
 
-        const localConcerts = getLocalConcerts(); // ✅ localStorage 콘서트
+      // ✅ concerts 테이블만 조회 (ensemble은 나중에 추가)
+      const { data: concerts, error } = await supabase
+        .from("concerts")
+        .select("*")
+        .gte("date", start)
+        .lte("date", end)
+        .order("date", { ascending: true })
+        .order("start_time", { ascending: true });
 
-        return [
-          ...mockEvents
-            .filter((e) => e.date >= start && e.date <= end)
-            .map(ensembleToReservation),
-
-          ...[ ...localConcerts]
-            .filter((c) => c.date >= start && c.date <= end)
-            .map(concertToReservation),
-        ];
+      if (error) {
+        console.error("Concert fetch error:", error);
+        return [];
       }
 
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("*")
-        .gte("date", formatToDbDate(startDate))
-        .lte("date", formatToDbDate(endDate));
-
-      if (error) throw error;
-      return data as Reservation[];
+      return (concerts as ConcertRow[])
+        .map(rowToConcert)
+        .map(concertToReservation);
     },
   });
 };
 
-// [Read] 모든 예약 가져오기 (특정 컴포넌트용, 필요시 사용)
-// 예: "다가오는 예약" 컴포넌트에서 오늘 이후 데이터만 필요할 때
+// [Read] 다가오는 예약
 export const useUpcomingReservations = () => {
   return useQuery({
     queryKey: ["reservations", "upcoming"],
     queryFn: async () => {
-      if (USE_MOCK) {
-        const today = formatToDbDate(new Date());
-        const localConcerts = getLocalConcerts();
-
-        return [
-          ...mockEvents.map(ensembleToReservation),
-          ...[ ...localConcerts].map(concertToReservation),
-        ]
-          .filter((x) => x.date >= today)
-          .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
-          .slice(0, 20);
-      }
-
       const today = formatToDbDate(new Date());
-      const { data, error } = await supabase
-        .from("reservations")
+
+      const { data: concerts, error } = await supabase
+        .from("concerts")
         .select("*")
         .gte("date", today)
         .order("date", { ascending: true })
         .order("start_time", { ascending: true })
         .limit(20);
 
-      if (error) throw error;
-      return data as Reservation[];
+      if (error) {
+        console.error("Concert fetch error:", error);
+        return [];
+      }
+
+      return (concerts as ConcertRow[])
+        .map(rowToConcert)
+        .map(concertToReservation);
     },
   });
 };
 
-// [Create] 예약 추가하기
+// [Create] 예약 추가하기 (현재는 사용 안 함)
 export const useAddReservation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (newRes: Omit<Reservation, "id" | "created_at">) => {
-      if (USE_MOCK) return;  // ✅ 아무것도 안 함
-      const { error } = await supabase.from("reservations").insert(newRes);
-      if (error) throw error;
+      // TODO: 나중에 ensemble 추가 기능 구현
+      throw new Error("Not implemented");
     },
     onSuccess: () => {
-      // 모든 예약 관련 쿼리를 무효화하여 최신 데이터로 자동 갱신
       queryClient.invalidateQueries({ queryKey: ["reservations"] });
       alert("예약이 완료되었습니다.");
     },
@@ -133,19 +146,12 @@ export const useDeleteReservation = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      if (USE_MOCK) {
-        if (id.startsWith("concert_")) {
-          removeLocalConcert(id);
-        } else {
-          // 합주(evt_*)는 지금 mockEvents가 "상수"라 삭제 불가(정상)
-          // 원하면 합주도 localStorage로 옮기면 삭제 가능해짐
-        }
-        return;
-      }  // ✅ 아무것도 안 함
+      // concert 삭제
       const { error } = await supabase
-        .from("reservations")
+        .from("concerts")
         .delete()
         .eq("id", id);
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -162,32 +168,25 @@ export const useDeleteReservation = () => {
 // [NEW] 리스트 뷰용: 오늘 이후의 모든 예약 가져오기
 export const useAllUpcomingReservations = () => {
   return useQuery({
-    queryKey: ["reservations", "all_upcoming"], // 키 분리
+    queryKey: ["reservations", "all_upcoming"],
     queryFn: async () => {
-      if (USE_MOCK) {
-        const today = formatToDbDate(new Date());
-        const localConcerts = getLocalConcerts();
-
-        return [
-          ...mockEvents.map(ensembleToReservation),
-          ...[ ...localConcerts].map(concertToReservation),
-        ]
-          .filter((x) => x.date >= today)
-          .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
-          .slice(0, 20);
-      }
-
       const today = formatToDbDate(new Date());
-      const { data, error } = await supabase
-        .from("reservations")
+
+      const { data: concerts, error } = await supabase
+        .from("concerts")
         .select("*")
-        .gte("date", today) // 오늘 날짜부터
+        .gte("date", today)
         .order("date", { ascending: true })
         .order("start_time", { ascending: true });
-      // .limit(100) // 필요하면 제한 해제 또는 넉넉하게 설정
 
-      if (error) throw error;
-      return data as Reservation[];
+      if (error) {
+        console.error("Concert fetch error:", error);
+        return [];
+      }
+
+      return (concerts as ConcertRow[])
+        .map(rowToConcert)
+        .map(concertToReservation);
     },
   });
 };

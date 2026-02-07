@@ -19,7 +19,6 @@ import { Reservation } from "@/types";
 import { useReservations } from "@/hooks/useReservations"; // React Query Hook
 import { getKSTStartOfWeek, formatToDbDate, timeToMinutes } from "@/utils/date";
 import { getReservationColor } from "@/utils/colors"; // 색상 유틸
-import ReservationModal from "./ReservationModal";
 
 interface WeeklyTimetableProps {
   currentDate: Date;
