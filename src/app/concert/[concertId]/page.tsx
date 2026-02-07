@@ -1,4 +1,5 @@
 // app/concert/[concertId]/page.tsx
+// 지금 event/[eventId]에서 공연과 합주를 구분하는 로직이 있어서 이 페이지는 안씀
 
 import ConcertInfoSection from "@/components/concert/concertInfoSection";
 import BackToMainButton from "@/components/common/BackToMainButton";

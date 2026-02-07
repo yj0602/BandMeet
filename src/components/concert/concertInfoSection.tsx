@@ -86,10 +86,13 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
             BandMeet
           </span>
         </div>
-        <button className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-gray-400 hover:bg-white/10 hover:text-white transition-all backdrop-blur-md">
-          <LogOut size={14} />
-          <span>로그아웃</span>
-        </button>
+        <div className="flex items-center gap-3">
+            <button className="flex items-center gap-1.5 rounded-full border border-gray-700 bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+              <LogOut size={14} />
+              <span>로그아웃</span>
+            </button>
+            <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
+          </div>
       </header>
 
       {/* 메인 티켓 UI */}
