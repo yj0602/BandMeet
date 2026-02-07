@@ -11,7 +11,3 @@ export default function EnsembleSelectPage({
     <ReservationEnsembleSelect ensembleId={params.ensembleId} />
   );
 }
-
-export async function generateStaticParams() {
-  return [{ ensembleId: 'ensembleSelect' }];
-}

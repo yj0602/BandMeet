@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useMemo, useEffect } from 'react';
 import { timeToMinutes } from "@/utils/date";
 import { Clock, Check, MapPin} from "lucide-react";
@@ -16,6 +17,7 @@ import {
 } from "date-fns";
 
 export default function ReservationEnsembleCreate() {
+  const router = useRouter();
   const [ensembleTitle, setEnsembleTitle] = useState("");
 
   const [currentMonth, setCurrentMonth] = useState<Date | null>(null);
@@ -118,12 +120,15 @@ export default function ReservationEnsembleCreate() {
       startTime,
       endTime,
     };
-    // TODO: 나중에 API 연결
-    // createEnsembleMutation.mutate(payload);
-    sessionStorage.setItem(
-      "ensembleDraft",
-      JSON.stringify(payload)
-    );
+    // 로컬 스토리지에 저장
+    localStorage.setItem("ensembleDraft", JSON.stringify(payload));
+    
+    // Page 2로 이동
+    router.push(`/ensemble/select`);
+  };
+  // 취소 버튼 함수 추가
+  const handleCancel = () => {
+    router.push("/");
   };
   
   // 날짜
@@ -331,10 +336,7 @@ export default function ReservationEnsembleCreate() {
               {/* 취소 버튼 */}
               <button
                 type="button"
-                onClick={() => {
-                  // TODO: 뒤로 가기 - 추신:common/BackToMainButton.tsx쓰면 뭐든 메인으로 보내주는거 만들어뒀음
-                  // router.back() 같은 걸 나중에 연결
-                }}
+                onClick={handleCancel}
                 className="flex-1 py-3 bg-[#252525] hover:bg-[#2a2a2a] 
                           text-gray-400 hover:text-gray-200 
                           border border-[#30363d] 
