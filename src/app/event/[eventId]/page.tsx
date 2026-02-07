@@ -23,15 +23,6 @@ type ConcertRow = {
   memo: string | null;
 };
 
-type SetListItemRow = {
-  id: string;
-  concert_id: string;
-  order: number;
-  title: string;
-  note: string | null;
-  created_at: string;
-};
-
 export default async function EventDetailPage({
   params,
 }: {
@@ -59,15 +50,6 @@ export default async function EventDetailPage({
     } | null = null;
 
     if (concert) {
-    // (선택) set_list_items 테이블을 실제로 쓸 거면 여기서 setList 받아서 쓰세요.
-    // 지금은 concert.set_list 쓰는 구조니까 아예 조회 안 해도 됩니다.
-    // const { data: setList } = await supabaseServer
-    //   .from("set_list_items")
-    //   .select("*")
-    //   .eq("concert_id", eventId)
-    //   .order("order", { ascending: true })
-    //   .returns<SetListItemRow[]>();
-
     concertDetail = {
       concert: {
         id: concert.id,

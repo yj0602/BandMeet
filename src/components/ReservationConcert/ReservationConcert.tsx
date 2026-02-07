@@ -7,7 +7,6 @@ import { timeToMinutes } from "@/utils/date";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/utils/supabase"; // ✅ Supabase import
-import type { Concert } from "@/types/concert_detail";
 import { v4 as uuidv4 } from "uuid";
 
 import { Clock, Check, Plus, Trash2, MapPin, Music, LogOut } from "lucide-react";
