@@ -33,9 +33,12 @@ export default function ReservationEnsembleCreate() {
     setCurrentMonth(new Date());
   }, []);
 
-  // 마우스 이벤트
-  const handleMouseDown = (dateStr: string) => {
+  // 1. 드래그 시작
+  const handlePointerDown = (dateStr: string, e: React.PointerEvent) => {
     setIsDragging(true);
+    // 포인터 캡처를 설정해야 드래그 중 영역을 벗어나도 이벤트를 추적합니다.
+    e.currentTarget.setPointerCapture(e.pointerId);
+
     setSelectedDates(prev => {
       const next = new Set(prev);
       if (next.has(dateStr)) {
@@ -48,20 +51,48 @@ export default function ReservationEnsembleCreate() {
       return next;
     });
   };
-  const handleMouseEnter = (dateStr: string) => {
+  // 2. 드래그 중 (모바일 핵심: 좌표 계산)
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || !dragMode) return;
+    // 현재 터치/마우스 위치의 요소를 찾음
+    const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement;
+    const dateStr = target?.dataset?.date; // 날짜를 식별하기 위해 dataset 사용
 
-    setSelectedDates(prev => {
-      const next = new Set(prev);
-      if (dragMode === "add") next.add(dateStr);
-      else next.delete(dateStr);
-      return next;
-    });
+    if (dateStr) {
+      setSelectedDates(prev => {
+        const next = new Set(prev);
+        if (dragMode === "add") next.add(dateStr);
+        else next.delete(dateStr);
+        return next;
+      });
+    }
   };
-  const handleMouseUp = () => {
+  // 3. 드래그 끝
+  const handlePointerUp = (e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId);
     setIsDragging(false);
     setDragMode(null);
   };
+  // 드래그 중 화면 밖에서 손을 떼도 안전하게 종료되도록 전역 이벤트 등록
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const stopDrag = () => {
+      setIsDragging(false);
+      setDragMode(null);
+    };
+
+    // 마우스를 떼거나, 터치가 취소되거나, 브라우저가 포커스를 잃을 때 실행
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+    window.addEventListener("blur", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+      window.removeEventListener("blur", stopDrag);
+    };
+  }, [isDragging]);
   
   // 시간 범위 옵션
   const timeOptions = useMemo(() => {
@@ -188,7 +219,6 @@ export default function ReservationEnsembleCreate() {
               {/* 날짜 그리드 */}
               <div
                 className="grid grid-cols-7 gap-2 text-center text-xs"
-                onMouseLeave={handleMouseUp}
               >
                 {dates.map((date) => {
                   const dateStr = date.toISOString().slice(0, 10);
@@ -198,9 +228,17 @@ export default function ReservationEnsembleCreate() {
                   return (
                     <button
                       key={dateStr}
-                      onMouseDown={() => handleMouseDown(dateStr)}
-                      onMouseEnter={() => handleMouseEnter(dateStr)}
-                      onMouseUp={handleMouseUp}
+                      data-date={dateStr} // 좌표 계산을 위한 데이터 속성
+                      onPointerDown={(e) => handlePointerDown(dateStr, e)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onDragStart={(e) => e.preventDefault()} // 브라우저 기본 드래그 방지
+                      onContextMenu={(e) => e.preventDefault()} // 모바일 롱클릭 메뉴 방지
+                      style={{ 
+                        touchAction: "none", // 모바일 스크롤 방지
+                        userSelect: "none", 
+                        WebkitUserSelect: "none" 
+                      }}
                       className={`h-9 w-9 flex items-center justify-center rounded-lg transition text-sm
                         ${
                           selected
