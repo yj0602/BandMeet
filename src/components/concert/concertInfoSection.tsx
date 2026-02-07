@@ -1,6 +1,7 @@
 // src/components/concert/concertInfoSection.tsx
 "use client";
 
+import { supabase } from "@/utils/supabase";
 import type { Concert, SetListItem } from "@/types/concert_detail";
 import { v4 as uuidv4 } from "uuid";
 import { useState, useEffect } from "react";
@@ -22,7 +23,6 @@ import {
 type Props = {
   concert: Concert;
   setList?: SetListItem[];
-  memo?: string;
 };
 
 // 셋리 수정 관련
@@ -32,26 +32,85 @@ type SetListDraftItem = {
   note?: string;
 };
 
-const toDraft = (items?: SetListItem[]): SetListDraftItem[] => {
-  const base = items ?? [];
-  if (base.length === 0) return [{ id: uuidv4(), title: "", note: "" }];
-  return [...base]
-    .sort((a, b) => a.order - b.order)
-    .map((x) => ({ id: x.id, title: x.title, note: x.note ?? "" }));
-};
-
 const normalizeToSaved = (draft: SetListDraftItem[]): SetListItem[] => {
   const filtered = draft.filter((x) => x.title.trim() !== "");
   return filtered.map((x, idx) => ({
-    id: x.id || uuidv4(),
     order: idx + 1,
     title: x.title.trim(),
     note: (x.note ?? "").trim() || undefined,
   }));
 };
 
-export default function ConcertInfoSection({ concert, setList, memo }: Props) {
-    // 배경색 관련
+const toDraft = (items?: SetListItem[]): SetListDraftItem[] => {
+  const base = items ?? [];
+  if (base.length === 0) return [{ id: uuidv4(), title: "", note: "" }];
+  return base.map((x) => ({ 
+    id: uuidv4(),
+    title: x.title, 
+    note: x.note ?? "" 
+  }));
+};
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+const makeTimeOptions = (startHour = 0, endHour = 24) => {
+  const options: string[] = [];
+  for (let h = startHour; h < endHour; h++) {
+    options.push(`${pad2(h)}:00`);
+    options.push(`${pad2(h)}:30`);
+  }
+  // 24:00을 쓰고 싶으면 여기에서 options.push("24:00") 처리 가능
+  return options;
+};
+
+const TIME_OPTIONS = makeTimeOptions(0, 24);
+
+const compareTime = (a?: string | null, b?: string | null) => {
+  if (!a || !b) return 0;
+  // "HH:mm"
+  const [ah, am] = a.split(":").map(Number);
+  const [bh, bm] = b.split(":").map(Number);
+  return (ah * 60 + am) - (bh * 60 + bm);
+};
+
+const TimeSelect = ({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) => {
+  return (
+    <label className="flex flex-col gap-2">
+      <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="w-full rounded-xl border border-white/10 bg-[#0a0a0a] px-3 py-2.5 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-[#58a6ff] disabled:opacity-50"
+      >
+        {TIME_OPTIONS.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+};
+
+
+export default function ConcertInfoSection({ concert, setList }: Props) {
+  // ✅ concert.set_list를 우선 사용, props.setList는 fallback
+  const actualSetList = concert.set_list ?? setList ?? [];
+
+  // 배경색 관련
   useEffect(() => {
     const originalStyle = window.getComputedStyle(document.body).backgroundColor;
     const originalColor = window.getComputedStyle(document.body).color;
@@ -65,34 +124,46 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
 
   const [isEditing, setIsEditing] = useState(false);
 
-  const [rehearsalText, setRehearsalText] = useState(
-    concert.rehearsal_start_time && concert.rehearsal_end_time
-      ? `${concert.rehearsal_start_time} ~ ${concert.rehearsal_end_time} 리허설`
-      : "리허설 정보를 입력해주세요."
+  const [rehearsalStart, setRehearsalStart] = useState(
+    concert.rehearsal_start_time ?? "13:00"
+  );
+  const [rehearsalEnd, setRehearsalEnd] = useState(
+    concert.rehearsal_end_time ?? "16:00"
   );
 
-  const [performanceText, setPerformanceText] = useState(
-    `${concert.start_time} ~ ${concert.end_time} 본공연`
-  );
+  const [performanceStart, setPerformanceStart] = useState(concert.start_time ?? "18:00");
+  const [performanceEnd, setPerformanceEnd] = useState(concert.end_time ?? "21:00");
 
-  const [memoText, setMemoText] = useState(memo ?? "");
+  const [memoText, setMemoText] = useState(concert.memo ?? "");
 
-  // 셋리 편집용 draft state
-    const [draftSetList, setDraftSetList] = useState<SetListDraftItem[]>(() => toDraft(setList));
+  // ✅ actualSetList로 초기화
+  const [draftSetList, setDraftSetList] = useState<SetListDraftItem[]>(() => toDraft(actualSetList));
 
-    // 편집 중이 아닐 때만 props 변화 동기화
-    useEffect(() => {
-      if (!isEditing) {
-        setDraftSetList(toDraft(setList));
-        setMemoText(memo ?? "");
-      }
-    }, [setList, memo, isEditing]);
+  // 편집 중이 아닐 때만 props 변화 동기화
+useEffect(() => {
+  if (!isEditing) {
+    setDraftSetList(toDraft(actualSetList));
+    setMemoText(concert.memo ?? "");
 
-  const startEdit = () => {
-    setDraftSetList(toDraft(setList)); // 스냅샷
-    setMemoText(memo ?? "");
+    setRehearsalStart(concert.rehearsal_start_time ?? "13:00");
+    setRehearsalEnd(concert.rehearsal_end_time ?? "16:00");
+    setPerformanceStart(concert.start_time ?? "18:00");
+    setPerformanceEnd(concert.end_time ?? "21:00");
+  }
+}, [concert.set_list, setList, concert.memo, isEditing, concert.rehearsal_start_time, concert.rehearsal_end_time, concert.start_time, concert.end_time]);
+
+const startEdit = () => {
+    setDraftSetList(toDraft(actualSetList));
+    setMemoText(concert.memo ?? "");
+
+    setRehearsalStart(concert.rehearsal_start_time ?? "13:00");
+    setRehearsalEnd(concert.rehearsal_end_time ?? "16:00");
+    setPerformanceStart(concert.start_time ?? "18:00");
+    setPerformanceEnd(concert.end_time ?? "21:00");
+
     setIsEditing(true);
   };
+
 
   const addSetRow = () => {
     setDraftSetList((prev) => [...prev, { id: uuidv4(), title: "", note: "" }]);
@@ -106,24 +177,54 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
     setDraftSetList((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
-  const handleSave = () => {
-    const payload = {
-      concertId: concert.id,
-      rehearsal_text_local: rehearsalText,
-      performance_text_local: performanceText,
-      memo: memoText,
-      setList: normalizeToSaved(draftSetList),
-    };
+  const [isSaving, setIsSaving] = useState(false);
 
-     // ✅ 지금은 셋리 저장 로직 없이 콘솔만
-    console.log("UPDATE API 호출(임시):", payload);
+  const handleSave = async () => {
+  setIsSaving(true);
 
+  try {
+    const validSetList = normalizeToSaved(draftSetList);
+
+    const { error } = await supabase
+      .from("concerts")
+      .update({
+        rehearsal_start_time: rehearsalStart || null,
+        rehearsal_end_time: rehearsalEnd || null,
+        start_time: performanceStart,
+        end_time: performanceEnd,
+        memo: memoText, // ✅ 테이블에 memo 컬럼이 있을 때만
+        set_list: validSetList.length > 0 ? validSetList : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", concert.id);
+
+    if (error) {
+      console.error("Update error:", error);
+      alert("저장에 실패했습니다.");
+      return;
+    }
+
+    alert("저장되었습니다.");
+    window.location.reload();
     setIsEditing(false);
-  };
+  } catch (err) {
+    console.error("Unexpected error:", err);
+    alert("저장 중 오류가 발생했습니다.");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
 
   const handleCancel = () => {
-    setDraftSetList(toDraft(setList));
-    setMemoText(memo ?? "");
+    setDraftSetList(toDraft(actualSetList));
+    setMemoText(concert.memo ?? "");
+
+    setRehearsalStart(concert.rehearsal_start_time ?? "13:00");
+    setRehearsalEnd(concert.rehearsal_end_time ?? "16:00");
+    setPerformanceStart(concert.start_time ?? "18:00");
+    setPerformanceEnd(concert.end_time ?? "21:00");
+
     setIsEditing(false);
   };
 
@@ -135,8 +236,10 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
     "[&::-webkit-scrollbar-thumb]:rounded-full " +
     "hover:[&::-webkit-scrollbar-thumb]:bg-gray-400";
     
-    // props setList mutate 방지: sort는 복사본으로
-    const sortedSetList = setList && setList.length > 0 ? [...setList].sort((a, b) => a.order - b.order) : [];
+  // ✅ actualSetList로 정렬
+  const sortedSetList = actualSetList.length > 0 
+    ? [...actualSetList].sort((a, b) => a.order - b.order) 
+    : [];
 
   return (
     <section className="bg-[#050505] text-gray-200 min-h-screen p-4 md:p-8 flex flex-col items-center relative overflow-hidden">
@@ -154,12 +257,12 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
           </span>
         </div>
         <div className="flex items-center gap-3">
-            <button className="flex items-center gap-1.5 rounded-full border border-gray-700 bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
-              <LogOut size={14} />
-              <span>로그아웃</span>
-            </button>
-            <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
-          </div>
+          <button className="flex items-center gap-1.5 rounded-full border border-gray-700 bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+            <LogOut size={14} />
+            <span>로그아웃</span>
+          </button>
+          <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
+        </div>
       </header>
 
       {/* 메인 티켓 UI */}
@@ -181,12 +284,20 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
             <div className="absolute top-6 right-6 z-20">
               {isEditing ? (
                 <div className="flex gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
-                  <button onClick={handleCancel} className="p-2.5 rounded-full bg-gray-800 hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors border border-white/5">
+                  <button 
+                    onClick={handleCancel} 
+                    disabled={isSaving}
+                    className="p-2.5 rounded-full bg-gray-800 hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors border border-white/5 disabled:opacity-50"
+                  >
                     <X size={16} />
                   </button>
-                  <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white text-black hover:bg-gray-200 text-xs font-bold transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                  <button 
+                    onClick={handleSave} 
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white text-black hover:bg-gray-200 text-xs font-bold transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)] disabled:opacity-50"
+                  >
                     <Save size={14} />
-                    저장
+                    {isSaving ? "저장 중..." : "저장"}
                   </button>
                 </div>
               ) : (
@@ -232,46 +343,95 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
           {/* 2. 중간 영역 (Time Table) */}
           <div className="bg-[#18181b] px-6 py-6 md:px-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
+
               {/* 리허설 정보 */}
-              <div className={`group relative rounded-2xl p-5 border flex flex-col h-[180px] transition-all duration-300 ${isEditing ? 'border-violet-500/50 bg-[#0a0a0a] shadow-[0_0_20px_rgba(139,92,246,0.1)]' : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]'}`}>
+              <div
+                className={`group relative rounded-2xl p-5 border flex flex-col min-h-[180px] transition-all duration-300 ${
+                  isEditing
+                    ? "border-violet-500/50 bg-[#0a0a0a] shadow-[0_0_20px_rgba(139,92,246,0.1)]"
+                    : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3 shrink-0">
-                  <div className={`w-1.5 h-1.5 rounded-full ${isEditing ? 'bg-violet-500 animate-pulse' : 'bg-gray-600'}`} />
-                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Rehearsal</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${isEditing ? "bg-violet-500 animate-pulse" : "bg-gray-600"}`} />
+                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    Rehearsal
+                  </span>
                 </div>
-                
+
                 {isEditing ? (
-                  <textarea
-                    value={rehearsalText}
-                    onChange={(e) => setRehearsalText(e.target.value)}
-                    className={`w-full flex-1 bg-transparent text-sm text-gray-200 outline-none resize-none placeholder:text-gray-700 font-mono leading-relaxed ${scrollbarStyle}`}
-                  />
+                  <div className="flex flex-col gap-4 flex-1">
+                    <TimeSelect
+                      label="리허설 시작"
+                      value={rehearsalStart}
+                      onChange={(v) => {
+                        setRehearsalStart(v);
+                        if (compareTime(v, rehearsalEnd) > 0) setRehearsalEnd(v);
+                      }}
+                      disabled={isSaving}
+                    />
+                    <TimeSelect
+                      label="리허설 종료"
+                      value={rehearsalEnd}
+                      onChange={(v) => {
+                        setRehearsalEnd(v);
+                        if (compareTime(rehearsalStart, v) > 0) setRehearsalStart(v);
+                      }}
+                      disabled={isSaving}
+                    />
+                  </div>
                 ) : (
                   <div className={`text-sm text-gray-400 whitespace-pre-wrap leading-relaxed flex-1 font-mono ${scrollbarStyle}`}>
-                    {rehearsalText}
+                    {concert.rehearsal_start_time && concert.rehearsal_end_time
+                      ? `${concert.rehearsal_start_time} ~ ${concert.rehearsal_end_time} 리허설`
+                      : "리허설 정보를 입력해주세요."}
                   </div>
                 )}
               </div>
 
               {/* 본 공연 정보 */}
-              <div className={`group relative rounded-2xl p-5 border flex flex-col h-[180px] transition-all duration-300 ${isEditing ? 'border-blue-500/50 bg-[#0a0a0a] shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-white/10 bg-gradient-to-br from-violet-500/5 to-blue-500/5'}`}>
+              <div
+                className={`group relative rounded-2xl p-5 border flex flex-col min-h-[180px] transition-all duration-300 ${
+                  isEditing
+                    ? "border-blue-500/50 bg-[#0a0a0a] shadow-[0_0_20px_rgba(59,130,246,0.1)]"
+                    : "border-white/10 bg-gradient-to-br from-violet-500/5 to-blue-500/5"
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3 shrink-0">
-                  <Clock size={12} className={isEditing ? 'text-blue-500' : 'text-blue-400'} />
-                  <span className={`text-[11px] font-bold uppercase tracking-wider ${isEditing ? 'text-blue-500' : 'text-blue-300'}`}>Performance</span>
+                  <Clock size={12} className={isEditing ? "text-blue-500" : "text-blue-400"} />
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${isEditing ? "text-blue-500" : "text-blue-300"}`}>
+                    Performance
+                  </span>
                 </div>
 
                 {isEditing ? (
-                   <textarea
-                   value={performanceText}
-                   onChange={(e) => setPerformanceText(e.target.value)}
-                   className={`w-full flex-1 bg-transparent text-sm text-gray-200 outline-none resize-none placeholder:text-gray-700 font-mono leading-relaxed ${scrollbarStyle}`}
-                 />
+                  <div className="flex flex-col gap-4 flex-1">
+                    <TimeSelect
+                      label="본공연 시작"
+                      value={performanceStart}
+                      onChange={(v) => {
+                        setPerformanceStart(v);
+                        if (compareTime(v, performanceEnd) > 0) setPerformanceEnd(v);
+                      }}
+                      disabled={isSaving}
+                    />
+                    <TimeSelect
+                      label="본공연 종료"
+                      value={performanceEnd}
+                      onChange={(v) => {
+                        setPerformanceEnd(v);
+                        if (compareTime(performanceStart, v) > 0) setPerformanceStart(v);
+                      }}
+                      disabled={isSaving}
+                    />
+                  </div>
                 ) : (
                   <div className={`text-sm text-white/90 whitespace-pre-wrap leading-relaxed font-medium flex-1 font-mono ${scrollbarStyle}`}>
-                    {performanceText}
+                    {`${concert.start_time} ~ ${concert.end_time} 본공연`}
                   </div>
                 )}
               </div>
+
             </div>
           </div>
 
@@ -348,8 +508,8 @@ export default function ConcertInfoSection({ concert, setList, memo }: Props) {
                   ) : (
                     <ul className="space-y-3">
                       {sortedSetList.length > 0 ? (
-                        sortedSetList.map((item) => (
-                          <li key={item.id} className="flex items-start gap-3 group">
+                        sortedSetList.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-3 group">
                             <span className="text-[10px] font-mono text-gray-600 mt-1 group-hover:text-violet-400 transition-colors">
                               {String(item.order).padStart(2, "0")}
                             </span>

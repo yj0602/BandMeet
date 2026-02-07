@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 import { timeToMinutes } from "@/utils/date";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { addLocalConcert } from "@/mocks/local_concert_store";
-import type { Concert } from "@/types/concert_detail";
+import { supabase } from "@/utils/supabase"; // ✅ Supabase import
 import { v4 as uuidv4 } from "uuid";
 
 import { Clock, Check, Plus, Trash2, MapPin, Music, LogOut } from "lucide-react";
@@ -31,20 +30,20 @@ type SetListDraftItem = {
 
 export default function ConcertCreate() {
   const router = useRouter();
-  const queryClient = useQueryClient(); // ✅ 훅은 컴포넌트 안에서만
+  const queryClient = useQueryClient();
 
   const [concertTitle, setConcertTitle] = useState("");
-  const [venue, setVenue] = useState(""); // ✅ location 대신 venue
-
+  const [venue, setVenue] = useState("");
   const [currentMonth, setCurrentMonth] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-
   const [setList, setSetList] = useState<SetListDraftItem[]>([
     { id: uuidv4(), title: "", note: "" },
   ]);
+
+  // ✅ 로딩/에러 상태 추가
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setCurrentMonth(new Date());
@@ -93,38 +92,60 @@ export default function ConcertCreate() {
     setSetList((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
-  // ✅ 하나만 남기고: localStorage 저장 + 메인 invalidate
-  const handleCreateConcert = () => {
-    if (!canSubmit) return;
+  // ✅ Supabase에 저장
+  const handleCreateConcert = async () => {
+  if (!canSubmit || isSubmitting) return;
 
-    const now = new Date().toISOString();
+  setIsSubmitting(true);
 
-    const newConcert: Concert = {
-      id: `concert_${uuidv4()}`,
+  try {
+    // ✅ 빈 제목 제외한 셋리스트만 필터링
+    const validSetList = setList
+      .filter((item) => item.title.trim() !== "")
+      .map((item, index) => ({
+        order: index + 1,
+        title: item.title.trim(),
+        note: item.note?.trim() || null,
+      }));
+
+    // Supabase에 insert할 데이터
+    const concertData = {
       title: concertTitle.trim(),
-      date: selectedDate!, // canSubmit이 보장
-      start_time: startTime,
-      end_time: endTime,
+      date: selectedDate!, // "YYYY-MM-DD"
+      start_time: startTime, // "HH:mm"
+      end_time: endTime, // "HH:mm"
       location: venue.trim(),
-      created_at: now,
-      updated_at: now,
+      kind: "concert",
+      set_list: validSetList.length > 0 ? validSetList : null, // ✅ 셋리스트 추가
+      // id, created_at, updated_at은 Supabase에서 자동 생성
     };
 
-    addLocalConcert(newConcert);
+    const { data, error } = await supabase
+      .from("concerts")
+      .insert(concertData)
+      .select()
+      .single();
 
-    // ✅ 메인 캘린더/리스트 즉시 반영
+    if (error) {
+      console.error("Concert insert error:", error);
+      alert("공연 생성에 실패했습니다.");
+      return;
+    }
+
+    console.log("Concert created:", data);
+
+    // ✅ 캐시 무효화 → 메인 화면 즉시 반영
     queryClient.invalidateQueries({ queryKey: ["reservations"] });
 
-    // (선택) 입력 초기화
-    // setConcertTitle("");
-    // setVenue("");
-    // setSelectedDate(null);
-    // setStartTime("");
-    // setEndTime("");
-    // setSetList([{ id: uuidv4(), title: "", note: "" }]);
-
+    alert("공연이 생성되었습니다!");
     router.push("/");
-  };
+  } catch (err) {
+    console.error("Unexpected error:", err);
+    alert("공연 생성 중 오류가 발생했습니다.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   if (!currentMonth) return <div className="text-gray-500">로딩 중...</div>;
 
@@ -278,7 +299,6 @@ export default function ConcertCreate() {
               </div>
             </div>
 
-            {/* 셋리스트 UI는 그대로 유지 (저장에는 아직 반영 안 함) */}
             <div>
               <h3 className="text-lg font-semibold mb-3 text-center text-[#f0f6fc]">셋리스트</h3>
               <div className="bg-[#161b22] border border-[#30363d] rounded-3xl p-6">
@@ -341,16 +361,16 @@ export default function ConcertCreate() {
               <button
                 type="button"
                 onClick={handleCreateConcert}
-                disabled={!canSubmit}
+                disabled={!canSubmit || isSubmitting}
                 className={`flex-1 py-3 rounded-xl font-bold transition flex justify-center items-center gap-2 shadow-lg shadow-blue-900/20
                   ${
-                    !canSubmit
+                    !canSubmit || isSubmitting
                       ? "bg-blue-900/50 text-blue-200/50 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-500 text-white"
                   }`}
               >
                 <Check className="w-5 h-5" />
-                공연 생성
+                {isSubmitting ? "저장 중..." : "공연 생성"}
               </button>
             </div>
           </section>

@@ -1,4 +1,4 @@
-import { format, startOfWeek, addDays, parseISO, parse } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
 const TIMEZONE = "Asia/Seoul";
@@ -25,10 +25,13 @@ export const getKSTStartOfWeek = (date: Date) => {
 };
 
 // 5. 시간 문자열(HH:mm)을 분(number)으로 변환 (비교용)
-export const timeToMinutes = (timeStr: string) => {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + m;
+export const timeToMinutes = (time: string) => {
+  // "HH:MM" or "HH:MM:SS" 모두 지원
+  const [h, m] = time.split(":");
+  const hh = Number(h);
+  const mm = Number(m);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return 0; // 또는 throw
+  return hh * 60 + mm;
 };
 
 // 6. DB 시간(HH:mm:ss)을 깔끔하게(HH:mm) 자르기
