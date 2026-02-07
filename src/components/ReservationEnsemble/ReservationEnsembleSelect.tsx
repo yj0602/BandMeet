@@ -3,8 +3,11 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Check, User } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
+import { Fragment } from "react"
+import { useRouter } from "next/navigation";
 
 export default function ReservationEnsembleSelect() {
+    const router = useRouter();
     const [userName, setUserName] = useState("");
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [ensembleData, setEnsembleData] = useState<any>(null);
@@ -27,8 +30,16 @@ export default function ReservationEnsembleSelect() {
 
     // Page1 데이터 불러오기 (Hydration 에러 방지를 위해 useEffect 사용)
     useEffect(() => {
-        const saved = localStorage.getItem("ensembleDraft");
-        if (saved) setEnsembleData(JSON.parse(saved));
+        // 1. 방 정보 불러오기
+        const savedDraft = localStorage.getItem("ensembleDraft");
+        if (savedDraft) setEnsembleData(JSON.parse(savedDraft));
+
+        // 2. 기존 로그인 유저가 있는지 확인
+        const savedUser = localStorage.getItem("ensembleUser");
+        if (savedUser) {
+            setUserName(savedUser);
+            setIsLoggedIn(true);
+        }
     }, []);
     // 드래그 이벤트
     useEffect(() => {
@@ -97,6 +108,26 @@ export default function ReservationEnsembleSelect() {
         }
         return result;
     }, [ensembleData]);
+
+    // 로그인 처리 함수
+    const handleUserLogin = () => {
+        const trimmedName = userName.trim();
+        if (trimmedName) {
+            // 로컬 스토리지에 유저 이름 저장
+            localStorage.setItem("ensembleUser", trimmedName);
+            setIsLoggedIn(true);
+        }
+    };
+    // 로그아웃 처리
+    const handleLogout = () => {
+        if (confirm("로그아웃 하시겠습니까?")) {
+            localStorage.removeItem("ensembleUser"); // 저장된 이름 삭제
+            setUserName(""); // 상태 초기화
+            setIsLoggedIn(false); // 로그인 상태 해제
+            setSelectedSessions(new Set()); // 선택했던 세션 초기화 (선택 사항)
+            setSelectedCells(new Set()); // 선택했던 시간 초기화 (선택 사항)
+        }
+    };
 
     // 시간 셀 드래그 (데스크탑+모바일 모두 가능하게)
     const handleCellPointerDown = (key: string) => {
@@ -168,6 +199,49 @@ export default function ReservationEnsembleSelect() {
     if (!ensembleData) {
         return <div className="min-h-screen bg-[#0d1117] flex items-center justify-center text-gray-500">정보를 불러오는 중...</div>;
     }
+    // 하단 확정 버튼 클릭 시 실행될 함수
+    const handleConfirmSelection = () => {
+        if (!isLoggedIn || selectedSessions.size === 0 || selectedCells.size === 0) return;
+
+        // 날짜 형식 표준화
+        // 현재 selectedCells에 저장된 "2/5-13:00" 포맷을 
+        // ensembleData.dates에 있는 실제 연도 정보를 포함한 포맷으로 매핑합니다.
+        const standardizedSlots = Array.from(selectedCells).map(cellKey => {
+            const [displayDate, time] = cellKey.split("-"); // "2/5", "13:00" 분리
+            
+            // ensembleData.dates에서 해당 월/일과 일치하는 전체 날짜(YYYY-MM-DD)를 찾음
+            const fullDate = ensembleData.dates.find((d: string) => {
+                const [,, day] = d.split("-");
+                const displayDay = displayDate.split("/")[1];
+                return parseInt(day) === parseInt(displayDay);
+            });
+
+            return `${fullDate} ${time}`; // 최종: "2026-02-05 13:00"
+        });
+
+        // 데이터 객체 구성 및 중복 방지 저장
+        const userSelection = {
+            userName: userName.trim(), // ensembleUser와 일치하는 값
+            sessions: Array.from(selectedSessions),
+            availableSlots: standardizedSlots, // 표준화된 배열 저장
+            updatedAt: new Date().toISOString(),
+        };
+
+        // 로컬 스토리지에 저장 
+        // 나중에는 여러 명의 응답을 배열로 관리해야 하므로 'responses' 키를 사용
+        const existingResponses = JSON.parse(localStorage.getItem("ensembleResponses") || "[]");
+        
+        // 중복 방지: 동일한 이름의 기존 데이터가 있다면 지우고 새로 넣음
+        const updatedResponses = [
+            ...existingResponses.filter((r: any) => r.userName !== userSelection.userName),
+            userSelection
+        ];
+
+        localStorage.setItem("ensembleResponses", JSON.stringify(updatedResponses));
+        
+        // 저장 후  Page 3(결과 페이지)로 이동
+        router.push("/ensemble/result");
+    };
 
 
   return (
@@ -178,20 +252,40 @@ export default function ReservationEnsembleSelect() {
           <span className="text-[#58a6ff]">👥</span>
           BandMeet
         </div>
-        {/* 로그인 영역*/}
+        {/* 로그인 영역 수정 */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              // TODO: 로그인 로직 연결
-            }}
-            className="flex items-center gap-1.5 rounded-full border border-gray-700
-                      bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300
-                      hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            <span>로그인</span>
-          </button>
-
-          <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
+            {isLoggedIn ? (
+                <div className="flex items-center gap-2">
+                    {/* 로그아웃 버튼 */}
+                    <button
+                        onClick={handleLogout}
+                        className="px-2 py-1.5 text-[10px] font-medium text-gray-500 hover:text-red-400 transition-colors border border-gray-800 rounded-lg hover:border-red-900/50"
+                    >
+                        로그아웃
+                    </button>
+                    
+                    {/* 유저 이름 표시 */}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1a1a1a] border border-gray-700 text-xs text-gray-300">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        {userName}님
+                    </div>
+                </div>
+            ) : (
+                <button
+                    onClick={() => {
+                        const nameInput = document.querySelector('input[placeholder="이름"]') as HTMLInputElement;
+                        nameInput?.focus();
+                    }}
+                    className="flex items-center gap-1.5 rounded-full border border-gray-700
+                            bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300
+                            hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                    <span>로그인</span>
+                </button>
+            )}
+            <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center">
+                <User className="w-5 h-5 text-gray-400" />
+            </div>
         </div>
       </header>
 
@@ -210,69 +304,78 @@ export default function ReservationEnsembleSelect() {
               가능한 시간 선택
             </h3>
 
-            <div className="bg-[#161b22] border border-[#30363d] rounded-3xl p-4 md:p-6 shadow-xl overflow-x-auto">
-                {/* 동적으로 변하는 days.length에 맞춰 그리드 생성 */}
-                <div 
-                    className="grid text-xs sticky top-0 bg-[#161b22] z-10 pt-2"
-                    style={{ gridTemplateColumns: `60px repeat(${days.length}, 1fr)` }}
-                >
-                <div />
-                {days.map((d, idx) => (
-                    <div key={idx} className="flex flex-col items-center mb-4 select-none">
-                        {/* 요일: 작고, 얇고, 연한 회색 */}
-                        <span className="text-[10px] font-normal text-gray-500 mb-0.5">
-                            {d.weekDay}
-                        </span>
-                        
-                        {/* 날짜: 조금 더 크고, 어두운 회색 (중요도에 따라 색상 조절) */}
-                        <span className="text-[13px] font-medium text-[#484f58]">
-                            {d.dateDisplay}
-                        </span>
-                    </div>
-                ))}
-
-                {times.map((t) => {
-                    const isHour = t.endsWith(":00");
-                    return (
-                        <div key={t} className="contents">
-                            {/* 시간 라벨: 정시에만 표시하거나 작게 표시 */}
-                            <div className={`text-[10px] pr-2 flex items-start justify-end text-gray-500 ${isHour ? "mt-[-6px]" : "invisible"}`}>
-                                {t}
+            <div className="bg-[#161b22] border border-[#30363d] rounded-3xl p-3 md:p-3 shadow-xl overflow-hidden flex flex-col">
+                <div className="overflow-x-auto w-full custom-scrollbar">
+                    <div 
+                        className="grid text-xs border-b border-gray-800 bg-[#161b22] shrink-0"
+                        style={{ 
+                            gridTemplateColumns: `60px repeat(${days.length}, 1fr)`,
+                            minWidth: `${60 + (days.length * 50)}px`,
+                            width: "100%" 
+                        }}
+                    >
+                        {/* [행 1] 날짜 헤더 영역 */}
+                        <div className="h-full bg-[#161b22] sticky top-0 z-30" />
+                        {days.map((d, idx) => (
+                            <div 
+                                key={`header-${idx}`} 
+                                className="flex flex-col items-center py-3 select-none"
+                            >
+                                <span className="text-[10px] font-light text-gray-500 mb-0.5">{d.weekDay}</span>
+                                <span className="text-[12px] font-medium text-[#484f58]">{d.dateDisplay}</span>
                             </div>
-                            {days.map((d) => {
-                                const key = `${d}-${t}`;
-                                const selected = selectedCells.has(key);
-                                return (
+                        ))}
+                    
+
+                        {/* [행 2부터] 시간 및 그리드 셀 영역 */}
+                        {times.map((t) => {
+                            const isHour = t.endsWith(":00");
+                            return (
+                                <Fragment key={`row-${t}`}> 
+                                {/* 시간 라벨 */}
+                                <div className={`
+                                    pr-2 flex items-start justify-end text-gray-500 
+                                    ${isHour ? "text-[10px] mt-[-6px]" : "invisible"}
+                                `}>
+                                    {t}
+                                </div>
+
+                                {/* 해당 시간대의 날짜별 셀들 */}
+                                {days.map((d) => {
+                                    const cellKey = `${d.dateDisplay}-${t}`;
+                                    const selected = selectedCells.has(cellKey);
+                                    return (
                                     <div
-                                        key={key}
-                                        data-cellkey={key}
+                                        key={cellKey}
+                                        data-cellkey={cellKey}
                                         onPointerDown={(e) => {
-                                            if (!isLoggedIn) return;
-                                            e.currentTarget.setPointerCapture(e.pointerId);
-                                            handleCellPointerDown(key);
+                                        if (!isLoggedIn) return;
+                                        e.currentTarget.setPointerCapture(e.pointerId);
+                                        handleCellPointerDown(cellKey);
                                         }}
                                         onPointerMove={handlePointerMove}
                                         onPointerUp={(e) => {
-                                            e.currentTarget.releasePointerCapture(e.pointerId);
-                                            handleCellPointerUp();
+                                        e.currentTarget.releasePointerCapture(e.pointerId);
+                                        handleCellPointerUp();
                                         }}
                                         onDragStart={(e) => e.preventDefault()}
                                         onContextMenu={(e) => e.preventDefault()}
-                                        style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
+                                        style={{ touchAction: "none", userSelect: "none" }}
                                         className={`
-                                            h-6 border-l border-gray-800/60
-                                            ${isHour ? "border-t border-gray-600/50" : "border-t border-gray-800/20"}
-                                            ${!isLoggedIn ? "bg-gray-800/20 cursor-not-allowed" 
-                                              : selected ? "bg-blue-500 border-blue-400" 
-                                              : "bg-[#0d1117] hover:bg-gray-700/50 cursor-pointer"}
+                                        h-6 border-l border-gray-800/60
+                                        ${isHour ? "border-t border-gray-600/50" : "border-t border-gray-800/20"}
+                                        ${!isLoggedIn ? "bg-gray-800/20 cursor-not-allowed" 
+                                            : selected ? "bg-blue-500 border-blue-400" 
+                                            : "bg-[#0d1117] hover:bg-gray-700/50 cursor-pointer"}
                                         `}
                                     />
-                                );
-                            })}
-                        </div>
-                    );
-                })}
-              </div>
+                                    );
+                                })}
+                                </Fragment>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
           </section>
 
@@ -299,8 +402,8 @@ export default function ReservationEnsembleSelect() {
                     onChange={(e) => setUserName(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === "Enter" && userName.trim()) {
-                        e.preventDefault();
-                        setIsLoggedIn(true);
+                            e.preventDefault();
+                            handleUserLogin();
                         }
                     }}
                     placeholder="이름"
@@ -310,9 +413,7 @@ export default function ReservationEnsembleSelect() {
                   />
 
                   <button
-                    onClick={() => {
-                        if (userName.trim()) setIsLoggedIn(true);
-                    }}
+                    onClick={handleUserLogin}
                     disabled={!userName.trim()}
                     className={`
                         w-full py-2.5 rounded-xl font-bold
@@ -440,6 +541,7 @@ export default function ReservationEnsembleSelect() {
         {/* ===== 하단 확정 버튼 ===== */}
         <div className="mt-12 flex justify-end">
           <button
+            onClick={handleConfirmSelection}
             disabled={
                 !isLoggedIn ||
                 selectedSessions.size === 0 ||
