@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { timeToMinutes } from "@/utils/date";
-import { Clock, Check} from "lucide-react";
+import { Clock, Check, MapPin} from "lucide-react";
 import {
   startOfMonth,
   endOfMonth,
@@ -23,7 +23,9 @@ export default function ReservationEnsembleCreate() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<"add" | "remove" | null>(null);
 
-  const [startTime, setStartTime] = useState("");
+  const [location, setLocation] = useState("미케닉스 동아리방");
+
+  const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("");
 
   // hydration 에러->첫 렌더를 동일하게
@@ -31,9 +33,12 @@ export default function ReservationEnsembleCreate() {
     setCurrentMonth(new Date());
   }, []);
 
-  // 마우스 이벤트
-  const handleMouseDown = (dateStr: string) => {
+  // 1. 드래그 시작
+  const handlePointerDown = (dateStr: string, e: React.PointerEvent) => {
     setIsDragging(true);
+    // 포인터 캡처를 설정해야 드래그 중 영역을 벗어나도 이벤트를 추적합니다.
+    e.currentTarget.setPointerCapture(e.pointerId);
+
     setSelectedDates(prev => {
       const next = new Set(prev);
       if (next.has(dateStr)) {
@@ -46,20 +51,48 @@ export default function ReservationEnsembleCreate() {
       return next;
     });
   };
-  const handleMouseEnter = (dateStr: string) => {
+  // 2. 드래그 중 (모바일 핵심: 좌표 계산)
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || !dragMode) return;
+    // 현재 터치/마우스 위치의 요소를 찾음
+    const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement;
+    const dateStr = target?.dataset?.date; // 날짜를 식별하기 위해 dataset 사용
 
-    setSelectedDates(prev => {
-      const next = new Set(prev);
-      if (dragMode === "add") next.add(dateStr);
-      else next.delete(dateStr);
-      return next;
-    });
+    if (dateStr) {
+      setSelectedDates(prev => {
+        const next = new Set(prev);
+        if (dragMode === "add") next.add(dateStr);
+        else next.delete(dateStr);
+        return next;
+      });
+    }
   };
-  const handleMouseUp = () => {
+  // 3. 드래그 끝
+  const handlePointerUp = (e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId);
     setIsDragging(false);
     setDragMode(null);
   };
+  // 드래그 중 화면 밖에서 손을 떼도 안전하게 종료되도록 전역 이벤트 등록
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const stopDrag = () => {
+      setIsDragging(false);
+      setDragMode(null);
+    };
+
+    // 마우스를 떼거나, 터치가 취소되거나, 브라우저가 포커스를 잃을 때 실행
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+    window.addEventListener("blur", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+      window.removeEventListener("blur", stopDrag);
+    };
+  }, [isDragging]);
   
   // 시간 범위 옵션
   const timeOptions = useMemo(() => {
@@ -80,6 +113,7 @@ export default function ReservationEnsembleCreate() {
   const handleCreateEnsemble = () => {
     const payload = {
       title: ensembleTitle,
+      location,
       dates: Array.from(selectedDates).sort(),
       startTime,
       endTime,
@@ -185,7 +219,6 @@ export default function ReservationEnsembleCreate() {
               {/* 날짜 그리드 */}
               <div
                 className="grid grid-cols-7 gap-2 text-center text-xs"
-                onMouseLeave={handleMouseUp}
               >
                 {dates.map((date) => {
                   const dateStr = date.toISOString().slice(0, 10);
@@ -195,9 +228,17 @@ export default function ReservationEnsembleCreate() {
                   return (
                     <button
                       key={dateStr}
-                      onMouseDown={() => handleMouseDown(dateStr)}
-                      onMouseEnter={() => handleMouseEnter(dateStr)}
-                      onMouseUp={handleMouseUp}
+                      data-date={dateStr} // 좌표 계산을 위한 데이터 속성
+                      onPointerDown={(e) => handlePointerDown(dateStr, e)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onDragStart={(e) => e.preventDefault()} // 브라우저 기본 드래그 방지
+                      onContextMenu={(e) => e.preventDefault()} // 모바일 롱클릭 메뉴 방지
+                      style={{ 
+                        touchAction: "none", // 모바일 스크롤 방지
+                        userSelect: "none", 
+                        WebkitUserSelect: "none" 
+                      }}
                       className={`h-9 w-9 flex items-center justify-center rounded-lg transition text-sm
                         ${
                           selected
@@ -218,8 +259,29 @@ export default function ReservationEnsembleCreate() {
 
           {/* 시간 범위 선택 */}
           <section>
-            <h3 className="text-lg font-semibold mb-6 text-center text-[#f0f6fc]">시간 범위 선택</h3>
+            <h3 className="text-lg font-semibold mb-6 text-center text-[#f0f6fc]">장소 / 시간 범위 선택</h3>
             <div className="bg-[#161b22] border border-[#30363d] rounded-3xl p-8 relative space-y-8">
+              {/* 장소 입력 */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 bg-purple-500/10 rounded-md">
+                    <MapPin className="w-3.5 h-3.5 text-purple-400" />
+                  </div>
+                  <label className="text-xs font-bold text-gray-400 uppercase">
+                    장소 입력
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="예: 미케닉스 동아리방"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-[#30363d]
+                            bg-[#0d1117] text-[#f0f6fc]
+                            placeholder-[#8b949e]
+                            focus:ring-2 focus:ring-[#58a6ff] outline-none"
+                />
+              </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="p-1.5 bg-blue-500/10 rounded-md">
