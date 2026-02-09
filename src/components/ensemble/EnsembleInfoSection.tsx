@@ -129,14 +129,6 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
             <div className="h-8 w-8 rounded bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs"></div>
             <span className="text-lg font-bold tracking-tight text-gray-100">BandMeet</span>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-1.5 rounded-full border border-gray-700 bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
-              <LogOut size={14} />
-              <span>로그아웃</span>
-            </button>
-            <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
-          </div>
         </div>
 
     {/* 2행: (모바일) 캡슐 */}

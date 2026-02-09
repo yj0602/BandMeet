@@ -256,13 +256,6 @@ const startEdit = () => {
             BandMeet
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-1.5 rounded-full border border-gray-700 bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
-            <LogOut size={14} />
-            <span>로그아웃</span>
-          </button>
-          <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
-        </div>
       </header>
 
       {/* 메인 티켓 UI */}
