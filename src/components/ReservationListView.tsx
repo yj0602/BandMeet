@@ -99,11 +99,6 @@ export default function ReservationListView({ onItemClick }: Props) {
                     >
                       {res.purpose}
                     </h4>
-
-                    <div className="flex items-center gap-1.5 mt-auto pt-2 text-sm text-gray-400">
-                      <User className="w-3.5 h-3.5" />
-                      <span>{res.user_name}</span>
-                    </div>
                   </button>
                 );
               })}

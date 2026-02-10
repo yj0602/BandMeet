@@ -6,11 +6,33 @@ import { ko } from "date-fns/locale";
 import { Reservation } from "@/types";
 import { Clock } from "lucide-react";
 import { useUpcomingReservations } from "@/hooks/useReservations"; // Hook import
+import { differenceInCalendarDays, startOfDay } from "date-fns";
 
 interface Props {
   onItemClick: (reservation: Reservation) => void;
   // refreshKey 삭제됨
 }
+
+const getDDay = (dateStr: string) => {
+  const today = startOfDay(new Date());
+  const target = startOfDay(new Date(dateStr));
+  const diff = differenceInCalendarDays(target, today);
+
+  if (diff === 0) return "D-0";
+  if (diff > 0) return `D-${diff}`;
+  return `D+${Math.abs(diff)}`; // 혹시 과거 대비용
+};
+
+const getDDayClass = (dateStr: string) => {
+  const diff = differenceInCalendarDays(
+    startOfDay(new Date(dateStr)),
+    startOfDay(new Date())
+  );
+
+  if (diff === 0) return "text-blue-400";
+  if (diff <= 3) return "text-orange-400";
+  return "text-gray-500";
+};
 
 export default function UpcomingReservations({ onItemClick }: Props) {
   // React Query Hook 사용
@@ -60,13 +82,14 @@ export default function UpcomingReservations({ onItemClick }: Props) {
                   {res.start_time.slice(0, 5)} ~ {res.end_time.slice(0, 5)}
                 </span>
               </div>
-              <div className="font-medium text-gray-200 text-sm truncate">
-                {res.purpose}
-              </div>
-              <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                {res.user_name}
-              </div>
+                <div className="flex justify-between items-end mt-1">
+                  <div className="font-medium text-gray-200 text-sm truncate">
+                    {res.purpose}
+                  </div>
+                  <span className={`text-xs font-mono ${getDDayClass(res.date)}`}>
+                    {getDDay(res.date)}
+                  </span>
+                </div>
             </div>
           ))
         )}

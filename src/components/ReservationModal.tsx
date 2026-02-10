@@ -24,7 +24,6 @@ export default function ReservationModal({
   const [targetDate, setTargetDate] = useState<Date>(initialDate);
   const [currentStartTime, setCurrentStartTime] = useState(initialStartTime);
 
-  const [userName, setUserName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [endTime, setEndTime] = useState(""); // 기본값 비워둠
 
@@ -41,7 +40,6 @@ export default function ReservationModal({
     if (isOpen) {
       setTargetDate(initialDate);
       setCurrentStartTime(initialStartTime);
-      setUserName("");
       setPurpose("");
       setEndTime(""); // 모달 열릴 때마다 종료 시간 초기화 (선택 강제)
     }
@@ -98,13 +96,12 @@ export default function ReservationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName || !purpose || !endTime || !currentStartTime) {
+    if (!purpose || !endTime || !currentStartTime) {
       alert("모든 정보를 입력해주세요.");
       return;
     }
     addMutation.mutate(
       {
-        user_name: userName,
         purpose: purpose,
         date: formatToDbDate(targetDate),
         start_time: currentStartTime,
@@ -240,24 +237,7 @@ export default function ReservationModal({
                     예약자 이름
                   </label>
                 </div>
-                <span
-                  className={`text-[10px] ${
-                    userName.length >= MAX_NAME_LENGTH
-                      ? "text-red-400"
-                      : "text-gray-600"
-                  }`}
-                >
-                  {userName.length}/{MAX_NAME_LENGTH}
-                </span>
               </div>
-              <input
-                type="text"
-                maxLength={MAX_NAME_LENGTH}
-                placeholder="홍길동"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                className={`${inputBaseStyle}`}
-              />
             </div>
 
             <div className="space-y-1">

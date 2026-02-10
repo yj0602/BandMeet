@@ -235,11 +235,6 @@ export default function WeeklyTimetable({
                             >
                               {res.purpose}
                             </div>
-                            <div
-                              className={`hidden md:block text-[9px] leading-tight truncate mt-0.5 ${colors.text}`}
-                            >
-                              {res.user_name}
-                            </div>
                           </>
                         )}
                       </button>

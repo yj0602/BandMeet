@@ -2,7 +2,6 @@
 
 export interface Reservation {
   id: string;
-  user_name: string;
   purpose: string;
   date: string; // 'YYYY-MM-DD' 형식
   start_time: string; // 'HH:mm' 형식

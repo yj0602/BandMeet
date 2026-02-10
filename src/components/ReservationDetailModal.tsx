@@ -124,24 +124,6 @@ export default function ReservationDetailModal({
                 </span>
               </div>
             </div>
-
-            {/* 구분선 */}
-            <div className="h-px bg-gray-700/50 my-4" />
-
-            {/* 예약자 */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <User className="w-5 h-5 text-purple-400" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-gray-500 font-medium">
-                  예약자
-                </span>
-                <span className="text-base text-gray-200 font-bold">
-                  {reservation.user_name}
-                </span>
-              </div>
-            </div>
           </div>
          {/* 상세보기 버튼 */}
          <button
