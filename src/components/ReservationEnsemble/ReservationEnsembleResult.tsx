@@ -194,10 +194,13 @@ export default function ReservationEnsembleResult() {
         if (!window.confirm(`${selectedTimes.size}개의 합주 일정을 확정하시겠습니까?`)) return;
 
         setIsSubmitting(true);
-        const participantData = responses.map(r => ({
-            name: r.userName,
-            sessions: r.sessions
-        }));
+        // 제외된 멤버를 필터링하여 참여자 데이터 생성
+        const participantData = responses
+            .filter(r => !excludedUsers.has(r.userName)) // 제외된 유저 필터링
+            .map(r => ({
+                name: r.userName,
+                sessions: r.sessions
+            }));
 
         try {
             // 1. 선택된 모든 시간대를 각각 ensemble 테이블에 insert
