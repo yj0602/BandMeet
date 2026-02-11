@@ -645,28 +645,40 @@ export default function ReservationEnsembleSelect() {
           </section>
         </div>
 
-        {/* ===== 하단 확정 버튼 ===== */}
-        <div className="mt-12 flex justify-end">
-          <button
-            onClick={handleConfirmSelection}
-            disabled={
-                !isLoggedIn ||
-                selectedSessions.size === 0 ||
-                selectedCells.size === 0
-            }
-            className={`
-                flex items-center gap-2 px-6 py-3 rounded-xl font-bold
-                transition shadow-lg shadow-blue-900/20
-                ${
-                !isLoggedIn || selectedSessions.size === 0 || selectedCells.size === 0
-                    ? "bg-blue-900/50 text-blue-200/50 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-500 text-white"
+        {/* ===== 하단 버튼 영역===== */}
+        <div className="mt-12 flex justify-end gap-3">
+            {/* ✨ 취소 버튼 추가 */}
+            <button
+                onClick={() => {
+                if (confirm("입력한 내용이 저장되지 않습니다. 취소하시겠습니까?")) {
+                    router.push("/"); // 혹은 원하는 경로로 이동
                 }
-            `}
+                }}
+                className="px-6 py-3 rounded-xl font-bold border border-[#30363d] text-gray-400 hover:bg-[#30363d] hover:text-white transition"
             >
-            <Check className="w-5 h-5" />
-            확정
+                취소
             </button>
+
+            <button
+                onClick={handleConfirmSelection}
+                disabled={
+                    !isLoggedIn ||
+                    selectedSessions.size === 0 ||
+                    selectedCells.size === 0
+                }
+                className={`
+                    flex items-center gap-2 px-6 py-3 rounded-xl font-bold
+                    transition shadow-lg shadow-blue-900/20
+                    ${
+                    !isLoggedIn || selectedSessions.size === 0 || selectedCells.size === 0
+                        ? "bg-blue-900/50 text-blue-200/50 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-500 text-white"
+                    }
+                `}
+                >
+                <Check className="w-5 h-5" />
+                확정
+                </button>
         </div>
       </main>
     </div>
