@@ -28,7 +28,7 @@ const getDDayClass = (dateStr: string) => {
     startOfDay(new Date())
   );
 
-  if (diff === 0) return "text-blue-400";
+  if (diff === 0) return "text-green-400";
   if (diff <= 3) return "text-orange-400";
   return "text-gray-500";
 };
