@@ -9,6 +9,7 @@ import ReservationDetailModal from "@/components/ReservationDetailModal";
 import ReservationListView from "@/components/ReservationListView";
 import { Reservation } from "@/types";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Home() {
   const router = useRouter();
@@ -75,7 +76,11 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 py-2 md:px-6 md:py-4 bg-[#1a1a1a] border-b border-gray-800 flex-shrink-0 relative z-40">
         <h1 className="text-xl font-bold text-gray-100 flex items-center gap-2">
           <span className="md:hidden">📅 예약 시스템</span>
-          <span className="hidden md:inline">📅 미케닉스 스케쥴러</span>
+          <Link href="/">
+            <span className="hidden md:inline cursor-pointer">
+              📅 미케닉스 스케쥴러
+            </span>
+          </Link>
         </h1>
         <button
           className="md:hidden p-2 text-gray-300 hover:text-white"
