@@ -135,7 +135,7 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
       <header className="mb-8 relative z-10">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-xs"></div>
+          <span className="text-[#58a6ff] text-xl">📅</span>
             <span className="text-lg font-bold tracking-tight text-gray-100">BandMeet</span>
           </Link>
         </div>

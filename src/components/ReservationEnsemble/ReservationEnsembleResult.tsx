@@ -247,7 +247,7 @@ export default function ReservationEnsembleResult() {
       <header className="w-full max-w-2xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
-            <span className="text-[#58a6ff]">👥</span>
+          <span className="text-[#58a6ff] text-xl">📅</span>
               BandMeet
           </div>
         </Link>
