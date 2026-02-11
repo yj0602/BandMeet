@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Check, User } from "lucide-react";
+import { Check, User, PlusCircle } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
 import { Fragment } from "react"
 import { useRouter } from "next/navigation";
@@ -149,6 +149,33 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, [isAddingSession]);
+
+    useEffect(() => {
+        if (!roomId) return;
+
+        const roomChannel = supabase
+            .channel(`room-status-page2-${roomId}`)
+            .on('postgres_changes', {
+                event: '*', 
+                schema: 'public',
+                table: 'ensemble_rooms',
+                filter: `id=eq.${roomId}`
+            }, (payload) => {
+                const isConfirmed = 
+                    payload.eventType === 'DELETE' || 
+                    (payload.new && payload.new.status === 'confirmed');
+
+                if (isConfirmed) {
+                    alert("방장이 일정을 최종 확정하여 조율이 종료되었습니다. 메인으로 이동합니다.");
+                    router.replace("/");
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(roomChannel);
+        };
+    }, [roomId, router]);
 
     // Page 1에서 정한 날짜들로 days 배열 구성
     const days = useMemo(() => {
@@ -556,23 +583,27 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
 
                             return (
                                 <button
-                                    key={session}
-                                    onClick={() => toggleSession(session)}
-                                    className={`
-                                        flex items-center gap-2
-                                        px-5 py-2
-                                        rounded-full
-                                        text-sm font-bold
-                                        transition
-                                        border
-                                        ${
-                                            selected
-                                            ? "bg-[#1f6feb] text-white border-[#1f6feb]"
-                                            : "bg-[#0d1117] text-[#c9d1d9] border-[#30363d] hover:bg-[#30363d]"
-                                        }
-                                    `}
+                                key={session}
+                                onClick={() => toggleSession(session)}
+                                className={`
+                                    flex items-center gap-2
+                                    px-5 py-2.5
+                                    rounded-full
+                                    text-sm font-bold
+                                    transition-all duration-200
+                                    border
+                                    ${
+                                    selected
+                                        ? "bg-[#1f6feb]/20 text-[#58a6ff] border-[#1f6feb] shadow-[0_0_15px_rgba(31,111,235,0.1)]"
+                                        : "bg-[#0d1117] text-[#8b949e] border-[#30363d] hover:border-[#8b949e] hover:text-[#c9d1d9]"
+                                    }
+                                `}
                                 >
-                                    {session}
+                                {/* 이모지 부분의 크기와 간격 조정 */}
+                                <span className={`transition-transform duration-200 ${selected ? "scale-110" : "grayscale opacity-70"}`}>
+                                    {get_instrument_icon([session])}
+                                </span>
+                                {session}
                                 </button>
                             );
                         })}
@@ -581,10 +612,9 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
                         {isLoggedIn && (
                             <button
                                 onClick={() => setIsAddingSession(true)}
-                                className="px-4 py-2 rounded-xl font-bold border border-dashed border-[#30363d]
-                                            text-[#58a6ff] hover:bg-[#30363d] transition"
+                                className="px-4 py-2.5 rounded-full font-bold border border-dashed border-[#30363d] text-[#484f58] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-all"
                             >
-                            + 
+                                <PlusCircle className="w-4 h-4" /> {/* Lucide 아이콘을 쓰면 더 예쁩니다 */}
                             </button>
                         )}
                     </div>
@@ -687,4 +717,26 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
       </main>
     </div>
   );
+}
+
+function get_instrument_icon(sessions?: string[]) {
+  if (!sessions || sessions.length === 0) return "🎵";
+  
+  const session = sessions[0].toLowerCase();
+
+  if (session.includes("보컬") || session.includes("vocal") || session.includes("🎤")) return "🎤";
+  if (session.includes("기타") || session.includes("guitar") || session.includes("🎸")) return "🎸";
+  if (session.includes("베이스") || session.includes("bass")) return "🎸"; 
+  if (session.includes("드럼") || session.includes("drum") || session.includes("🥁")) return "🥁";
+  
+  // ✨ "키보드" 및 관련 용어 추가
+  if (
+    session.includes("건반") || 
+    session.includes("피아노") || 
+    session.includes("piano") || 
+    session.includes("key") ||
+    session.includes("키보드")
+  ) return "🎹";
+  
+  return "🎵";
 }

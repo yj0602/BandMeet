@@ -42,7 +42,7 @@ function get_instrument_icon(sessions?: string[]) {
   if (session.includes("기타") || session.includes("guitar") || session.includes("🎸")) return "🎸";
   if (session.includes("베이스") || session.includes("bass")) return "🎸"; 
   if (session.includes("드럼") || session.includes("drum") || session.includes("🥁")) return "🥁";
-  if (session.includes("건반") || session.includes("피아노") || session.includes("piano") || session.includes("key")) return "🎹";
+  if (session.includes("키보드") || session.includes("건반") || session.includes("피아노") || session.includes("piano") || session.includes("key")) return "🎹";
   
   return "🎵";
 }
