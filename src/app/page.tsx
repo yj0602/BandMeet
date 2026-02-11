@@ -11,6 +11,8 @@ import { Reservation } from "@/types";
 import { useRouter } from "next/navigation";
 import ReservationModal from "@/components/ReservationModal";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/utils/supabase";
 
 export default function Home() {
   const router = useRouter();
@@ -28,6 +30,35 @@ export default function Home() {
 
   // 뷰 모드 상태 (timetable | list)
   const [viewMode, setViewMode] = useState<"timetable" | "list">("timetable");
+
+  const queryClient = useQueryClient();
+
+    useEffect(() => {
+    const onChange = () => {
+      // ✅ 다른 사람이 추가/수정/삭제하면 여기로 들어옴
+      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+      // 체감상 “즉시” 원하면 아래도 같이
+      queryClient.refetchQueries({ queryKey: ["reservations"], type: "active" });
+    };
+
+    const channel = supabase
+      .channel("reservations-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "concerts" },
+        onChange
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "personal_events" },
+        onChange
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   useEffect(() => {
     setCurrentDate(new Date());

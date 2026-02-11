@@ -136,7 +136,8 @@ export default function ConcertCreate() {
     console.log("Concert created:", data);
 
     // ✅ 캐시 무효화 → 메인 화면 즉시 반영
-    queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    await queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    await queryClient.refetchQueries({ queryKey: ["reservations"], type: "active" });
 
     alert("공연이 생성되었습니다!");
     router.push("/");
