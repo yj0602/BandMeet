@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     images: [
       {
         // ✅ metadataBase가 있으므로 상대경로 OK (절대경로로 자동 변환됨)
-        url: "/og-image.png",
+        url: `${siteUrl}/og-image.png`,
         width: 1200,
         height: 630,
         alt: "BandMeet 썸네일",
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "BandMeet",
     description: "밴드 일정 관리 플랫폼",
-    images: ["/og-image.png"],
+    images: [`${siteUrl}/og-image.png`],
   },
 
   icons: {
