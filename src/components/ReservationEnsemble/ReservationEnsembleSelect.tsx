@@ -317,8 +317,7 @@ export default function ReservationEnsembleSelect() {
 
             if (error) throw error;
 
-            // 이동할 때 replace를 사용하여 뒤로가기 시 폼 재제출 방지
-            router.replace(`/ensembleCreate/result?id=${roomId}`);
+            router.push(`/ensembleCreate/result?id=${roomId}`);
             
         } catch (err) {
             console.error("데이터 저장 실패:", err);

@@ -163,6 +163,11 @@ export default function ReservationEnsembleResult() {
         });
     };
 
+    // 돌아가기 함수 추가
+    const handleGoBack = () => {
+      router.push(`/ensembleCreate/select?id=${roomId}`);
+    };
+
     // 최종 일괄 확정 처리 함수
     const handleFinalConfirm = async () => {
         if (selectedTimes.size === 0) {
@@ -339,29 +344,41 @@ export default function ReservationEnsembleResult() {
               </div>
             </div>
 
-            {/* 최종 확정 버튼 */}
-            <button 
-              onClick={handleFinalConfirm}
-              disabled={selectedTimes.size === 0 || isSubmitting}
-              className={`w-full py-4 flex items-center justify-center gap-3 font-extrabold rounded-2xl transition-all shadow-xl ${
-                selectedTimes.size > 0 && !isSubmitting
-                ? "bg-[#238636] hover:bg-[#2ea043] text-white scale-[1.02]"
-                : "bg-gray-800 text-gray-500 cursor-not-allowed"
-              }`}
-            >
-              {isSubmitting ? (
-                "확정 처리 중..."
-              ) : (
-                <>
-                  <PlusCircle className="w-5 h-5" />
-                  {selectedTimes.size}개의 일정 최종 확정하기
-                </>
-              )}
-            </button>
-            
-            <p className="text-center text-[11px] text-gray-500">
-                확정 버튼을 누르면 메인 캘린더에 일괄 등록되며, 이 조율 방은 닫힙니다.
-            </p>
+
+            <div className="flex flex-col gap-3">
+              {/* ✨ 수정하기 버튼 추가 */}
+              <button 
+                onClick={handleGoBack}
+                className="w-full py-3 flex items-center justify-center gap-2 font-semibold rounded-2xl border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white transition-all group"
+              >
+                <Clock className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                내 시간 수정하기 (이전 단계)
+              </button>
+
+              {/* 최종 확정 버튼 */}
+              <button 
+                onClick={handleFinalConfirm}
+                disabled={selectedTimes.size === 0 || isSubmitting}
+                className={`w-full py-4 flex items-center justify-center gap-3 font-extrabold rounded-2xl transition-all shadow-xl ${
+                  selectedTimes.size > 0 && !isSubmitting
+                  ? "bg-[#238636] hover:bg-[#2ea043] text-white scale-[1.02]"
+                  : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {isSubmitting ? (
+                  "확정 처리 중..."
+                ) : (
+                  <>
+                    <PlusCircle className="w-5 h-5" />
+                    {selectedTimes.size}개의 일정 최종 확정하기
+                  </>
+                )}
+              </button>
+              
+              <p className="text-center text-[11px] text-gray-500">
+                  확정 버튼을 누르면 메인 캘린더에 일괄 등록되며, 이 조율 방은 닫힙니다.
+              </p>
+            </div>
           </section>
         </div>
       </main>
