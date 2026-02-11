@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, Clock, Calendar as CalendarIcon, Check, User } from "lucide-react";
+import { Users, Clock, Calendar as CalendarIcon, Check, User, PlusCircle } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
@@ -16,6 +16,9 @@ export default function ReservationEnsembleResult() {
     const [responses, setResponses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState("");
+
+    const [selectedTimes, setSelectedTimes] = useState<Set<string>>(new Set());
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         // 유저 정보 가져오기 (헤더용)
@@ -121,25 +124,38 @@ export default function ReservationEnsembleResult() {
         return segments;
     }, [responses]);
 
-    // 확정 처리 함수
-    const handleSelectTime = async (timeRange: string) => {
-        if (!window.confirm(`[${timeRange}]\n이 시간으로 합주를 확정하시겠습니까?`)) return;
+    // ✨ 개별 시간대 토글 함수
+    const toggleTimeSelection = (timeRange: string) => {
+        setSelectedTimes(prev => {
+            const next = new Set(prev);
+            if (next.has(timeRange)) next.delete(timeRange);
+            else next.add(timeRange);
+            return next;
+        });
+    };
 
-        // 데이터 포맷팅: "2026-02-03 | 14:00 ~ 15:30" -> 필요한 정보 추출
-        const [datePart, timePart] = timeRange.split(" | ");
-        const [startTime, endTime] = timePart.split(" ~ ");
+    // ✨ 최종 일괄 확정 처리 함수
+    const handleFinalConfirm = async () => {
+        if (selectedTimes.size === 0) {
+            alert("확정할 시간대를 최소 하나 이상 선택해주세요.");
+            return;
+        }
 
-        // 현재 응답한 인원들의 이름과 세션만 정리
+        if (!window.confirm(`${selectedTimes.size}개의 합주 일정을 확정하시겠습니까?`)) return;
+
+        setIsSubmitting(true);
         const participantData = responses.map(r => ({
             name: r.userName,
             sessions: r.sessions
         }));
 
         try {
-            // 실제 합주 일정(ensemble) 테이블에 데이터 삽입
-            const { error: insertError } = await supabase
-                .from("ensemble")
-                .insert([{
+            // 1. 선택된 모든 시간대를 각각 ensemble 테이블에 insert
+            const insertPromises = Array.from(selectedTimes).map(timeRange => {
+                const [datePart, timePart] = timeRange.split(" | ");
+                const [startTime, endTime] = timePart.split(" ~ ");
+                
+                return supabase.from("ensemble").insert([{
                     room_id: roomId,
                     title: ensembleData.title,
                     date: datePart.trim(),
@@ -148,10 +164,13 @@ export default function ReservationEnsembleResult() {
                     location: ensembleData.location,
                     participants: participantData 
                 }]);
+            });
 
-            if (insertError) throw insertError;
+            const results = await Promise.all(insertPromises);
+            const hasError = results.some(res => res.error);
+            if (hasError) throw new Error("일부 일정 저장에 실패했습니다.");
 
-            // 해당 조율 방의 상태를 'confirmed'로 업데이트
+            // 2. 조율 방 상태를 'confirmed'로 업데이트 (중복 확정 방지)
             const { error: updateError } = await supabase
                 .from("ensemble_rooms")
                 .update({ status: 'confirmed' })
@@ -159,14 +178,14 @@ export default function ReservationEnsembleResult() {
 
             if (updateError) throw updateError;
 
-            alert("합주가 최종 확정되었습니다! 메인 캘린더에서 확인하세요.");
-            
-            // replace를 사용하여 뒤로가기 방지
+            alert(`${selectedTimes.size}개의 합주가 모두 확정되었습니다!`);
             router.replace("/"); 
             
-        } catch (err) {
+        } catch (err: any) {
             console.error("확정 저장 실패:", err);
-            alert("일정 확정 처리 중 에러가 발생했습니다.");
+            alert(`오류 발생: ${err.message}`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -244,33 +263,61 @@ export default function ReservationEnsembleResult() {
                           <p className="text-xs text-gray-600 mt-2 font-light">인원을 조정하거나 시간을 다시 선택해보세요.</p>
                       </div>
                   ) : (
-                      commonTimes.map((timeRange, idx) => (
-                          <button
-                              key={idx}
-                              onClick={() => handleSelectTime(timeRange)}
-                              className="w-full flex items-center justify-between p-4 bg-[#0d1117] hover:bg-[#1f6feb]/10 border border-gray-800 hover:border-[#1f6feb] rounded-xl transition-all group"
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-[#1f6feb]/10 rounded-lg group-hover:bg-[#1f6feb]/20">
-                                      <CalendarIcon className="w-4 h-4 text-[#58a6ff]" />
-                                  </div>
-                                  <span className="text-sm md:text-base font-bold text-[#f0f6fc]">
-                                      {timeRange}
-                                  </span>
-                              </div>
-                              <span className="text-xs text-[#58a6ff] font-semibold">선택하기</span>
-                          </button>
-                      ))
+                      commonTimes.map((timeRange, idx) => {
+                          const isSelected = selectedTimes.has(timeRange);
+                          return (
+                            <button
+                                key={idx}
+                                onClick={() => toggleTimeSelection(timeRange)}
+                                className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all group ${
+                                    isSelected 
+                                    ? "bg-[#1f6feb]/20 border-[#1f6feb] shadow-[0_0_15px_rgba(31,111,235,0.1)]" 
+                                    : "bg-[#0d1117] border-gray-800 hover:border-gray-600"
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${isSelected ? "bg-[#1f6feb] text-white" : "bg-gray-800 text-gray-500"}`}>
+                                        <CalendarIcon className="w-4 h-4" />
+                                    </div>
+                                    <span className={`text-sm md:text-base font-bold ${isSelected ? "text-white" : "text-[#c9d1d9]"}`}>
+                                        {timeRange}
+                                    </span>
+                                </div>
+                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                    isSelected ? "bg-[#1f6feb] border-[#1f6feb]" : "border-gray-700"
+                                }`}>
+                                    {isSelected && <Check className="w-4 h-4 text-white" />}
+                                </div>
+                            </button>
+                          );
+                      })
                   )}
               </div>
             </div>
 
+            {/* 최종 확정 버튼 */}
             <button 
-              onClick={() => router.push("/")}
-              className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-2xl transition shadow-lg"
+              onClick={handleFinalConfirm}
+              disabled={selectedTimes.size === 0 || isSubmitting}
+              className={`w-full py-4 flex items-center justify-center gap-3 font-extrabold rounded-2xl transition-all shadow-xl ${
+                selectedTimes.size > 0 && !isSubmitting
+                ? "bg-[#238636] hover:bg-[#2ea043] text-white scale-[1.02]"
+                : "bg-gray-800 text-gray-500 cursor-not-allowed"
+              }`}
             >
-              메인 페이지로 돌아가기
+              {isSubmitting ? (
+                "확정 처리 중..."
+              ) : (
+                <>
+                  <PlusCircle className="w-5 h-5" />
+                  {selectedTimes.size}개의 일정 최종 확정하기
+                </>
+              )}
             </button>
+            
+            <p className="text-center text-[11px] text-gray-500">
+                확정 버튼을 누르면 메인 캘린더에 일괄 등록되며, 이 조율 방은 닫힙니다.
+            </p>
           </section>
         </div>
       </main>
