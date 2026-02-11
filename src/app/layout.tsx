@@ -14,9 +14,32 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "미케닉스 스케쥴러",
-  description: "합주합시다",
+  title: "BandMeet",
+  description: "밴드 일정 관리 플랫폼",
+  openGraph: {
+    title: "BandMeet",
+    description: "밴드 일정 관리 플랫폼",
+// 배포 완료 후: metadataBase: new URL("https://bandmeet.vercel.app"),
+    siteName: "BandMeet",
+    images: [
+      {
+        url: "/og-image.png", // public 폴더에 넣을 이미지
+        width: 1200,
+        height: 630,
+        alt: "BandMeet 썸네일",
+      },
+    ],
+    locale: "ko_KR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BandMeet",
+    description: "밴드 일정 관리 플랫폼",
+    images: ["/og-image.png"],
+  },
 };
+
 
 export default function RootLayout({
   children,
