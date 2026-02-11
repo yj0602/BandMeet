@@ -74,27 +74,36 @@ export default function ReservationEnsembleResult() {
         // 초기 데이터 로드
         fetchAllData();
 
-        // Supabase 실시간 구독 (Realtime)
-        const channel = supabase
-            .channel(`room-updates-${roomId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*', // INSERT, UPDATE, DELETE 모두 감지
-                    schema: 'public',
-                    table: 'ensemble_availability',
-                    filter: `room_id=eq.${roomId}`
-                },
-                () => {
-                    // 데이터 변경이 감지되면 다시 불러오기
-                    fetchAllData();
-                }
-            )
+        // 참여자 응답 감시
+        const availabilityChannel = supabase
+            .channel(`availability-updates-${roomId}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'ensemble_availability', 
+                filter: `room_id=eq.${roomId}` 
+            }, () => fetchAllData())
             .subscribe();
 
-        // 컴포넌트 언마운트 시 구독 해제
+        // 방 상태 및 삭제 감시
+        const roomChannel = supabase
+            .channel(`room-status-${roomId}`)
+            .on('postgres_changes', {
+                event: '*', // UPDATE 또는 DELETE 감지
+                schema: 'public',
+                table: 'ensemble_rooms',
+                filter: `id=eq.${roomId}`
+            }, (payload) => {
+                // 방이 삭제되었거나(DELETE), 상태가 'confirmed'로 변경되었다면(UPDATE)
+                if (payload.eventType === 'DELETE' || (payload.new && payload.new.status === 'confirmed')) {
+                    router.replace("/");
+                }
+            })
+            .subscribe();
+
         return () => {
-            supabase.removeChannel(channel);
+            supabase.removeChannel(availabilityChannel);
+            supabase.removeChannel(roomChannel);
         };
     }, [roomId]);
 
@@ -331,8 +340,18 @@ export default function ReservationEnsembleResult() {
                       </div>
                       <div className="flex gap-1">
                         {res.sessions.map((s: string) => (
-                          <span key={s} className="text-[10px] bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded-full">
-                            {s}
+                          <span 
+                            key={s} 
+                            className="inline-flex items-center gap-1.5 text-[11px] bg-blue-900/30 text-blue-400 px-2.5 py-0.5 rounded-full border border-blue-800/50"
+                          >
+                            {/* 이모지 부분 */}
+                            <span className="text-[12px] leading-none">
+                              {get_instrument_icon([s])}
+                            </span>
+                            {/* 세션 이름 부분 */}
+                            <span className="font-medium">
+                              {s}
+                            </span>
                           </span>
                         ))}
                       </div>
@@ -431,4 +450,26 @@ export default function ReservationEnsembleResult() {
       </main>
     </div>
   );
+}
+
+function get_instrument_icon(sessions?: string[]) {
+  if (!sessions || sessions.length === 0) return "🎵";
+  
+  const session = sessions[0].toLowerCase();
+
+  if (session.includes("보컬") || session.includes("vocal") || session.includes("🎤")) return "🎤";
+  if (session.includes("기타") || session.includes("guitar") || session.includes("🎸")) return "🎸";
+  if (session.includes("베이스") || session.includes("bass")) return "🎸"; 
+  if (session.includes("드럼") || session.includes("drum") || session.includes("🥁")) return "🥁";
+  
+  // ✨ "키보드" 및 관련 용어 추가
+  if (
+    session.includes("건반") || 
+    session.includes("피아노") || 
+    session.includes("piano") || 
+    session.includes("key") ||
+    session.includes("키보드")
+  ) return "🎹";
+  
+  return "🎵";
 }
