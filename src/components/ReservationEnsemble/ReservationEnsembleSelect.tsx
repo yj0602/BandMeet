@@ -8,7 +8,11 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
 
-export default function ReservationEnsembleSelect() {
+type Props = {
+  ensembleId: string;
+};
+
+export default function ReservationEnsembleSelect({ ensembleId }: Props) {
     const router = useRouter();
     const [roomId, setRoomId] = useState<string | null>(null);
     const [userName, setUserName] = useState("");

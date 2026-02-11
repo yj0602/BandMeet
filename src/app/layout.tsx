@@ -13,13 +13,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "BandMeet",
   description: "밴드 일정 관리 플랫폼",
   openGraph: {
     title: "BandMeet",
     description: "밴드 일정 관리 플랫폼",
-// 배포 완료 후: metadataBase: new URL("https://bandmeet.vercel.app"),
     siteName: "BandMeet",
     images: [
       {

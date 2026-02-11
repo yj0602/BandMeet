@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { format, addMinutes, parse } from "date-fns";
 import { X, Clock, Calendar, User, FileText, Check } from "lucide-react";
-import { useAddPersonalEvent, useReservations } from "@/hooks/useReservations";
+import { useAddPersonalEvent } from "@/hooks/useReservations";
 import { formatToDbDate, timeToMinutes } from "@/utils/date";
 
 interface ReservationModalProps {
@@ -32,10 +32,6 @@ export default function ReservationModal({
   const MAX_PURPOSE_LENGTH = 16;
 
   const addMutation = useAddPersonalEvent();
-  const { data: existingReservations = [] } = useReservations(
-    targetDate,
-    targetDate
-  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -56,36 +52,26 @@ export default function ReservationModal({
     return times.filter((t) => t !== "24:00" && t !== "24:30");
   }, []);
 
-  const availableEndTimes = useMemo(() => {
-    if (!currentStartTime) return [];
+const availableEndTimes = useMemo(() => {
+  if (!currentStartTime) return [];
 
-    const times: string[] = [];
-    let current = parse(currentStartTime, "HH:mm", new Date());
-    const startMin = timeToMinutes(currentStartTime);
+  const times: string[] = [];
+  let current = parse(currentStartTime, "HH:mm", new Date());
 
-    while (true) {
-      current = addMinutes(current, 30);
-      const timeStr = format(current, "HH:mm");
-      const displayTimeStr = timeStr === "00:00" ? "24:00" : timeStr;
+  while (true) {
+    current = addMinutes(current, 30);
+    const timeStr = format(current, "HH:mm");
+    const displayTimeStr = timeStr === "00:00" ? "24:00" : timeStr;
 
-      const endMin =
-        displayTimeStr === "24:00" ? 1440 : timeToMinutes(displayTimeStr);
+    times.push(displayTimeStr);
 
-      const isOverlapping = existingReservations.some((r) => {
-        const rStart = timeToMinutes(r.start_time);
-        const rEnd = timeToMinutes(r.end_time);
-        return startMin < rEnd && endMin > rStart;
-      });
+    if (displayTimeStr === "24:00") break;
+    if (times.length > 48) break; // 안전장치(그대로 둬도 됨)
+  }
 
-      if (isOverlapping) break;
+  return times;
+}, [currentStartTime]);
 
-      times.push(displayTimeStr);
-      if (displayTimeStr === "24:00") break;
-      if (times.length > 48) break;
-    }
-
-    return times;
-  }, [currentStartTime, existingReservations]);
 
   // 시작 시간이 바뀌어 현재 선택된 종료 시간이 유효하지 않게 될 때만 초기화
   useEffect(() => {
