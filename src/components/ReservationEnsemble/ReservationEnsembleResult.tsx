@@ -20,50 +20,79 @@ export default function ReservationEnsembleResult() {
     const [selectedTimes, setSelectedTimes] = useState<Set<string>>(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        // 유저 정보 가져오기 (헤더용)
-        setUserName(localStorage.getItem("ensembleUser") || "방문자");
-        const fetchAllData = async () => {
-            if (!roomId) return;
-            try {
-                // 방 정보와 참여자 응답 데이터를 동시에 불러오기
-                const [roomRes, responsesRes] = await Promise.all([
-                    supabase.from("ensemble_rooms").select("*").eq("id", roomId).single(),
-                    supabase.from("ensemble_availability").select("*").eq("room_id", roomId)
-                ]);
-
-                if (roomRes.data) {
-                    // 이미 확정된 방이면 안내 후 메인으로 튕겨내기
-                    if (roomRes.data.status === 'confirmed') {
-                        alert("이미 최종 확정이 완료된 합주입니다. 메인 화면에서 확인해주세요.");
-                        router.replace("/");
-                        return;
-                    }
-                    setEnsembleData({
-                        title: roomRes.data.title,
-                        location: roomRes.data.location,
-                        dates: roomRes.data.target_dates,
-                        startTime: roomRes.data.start_time_limit,
-                        endTime: roomRes.data.end_time_limit
-                    });
-                }
-
-                if (responsesRes.data) {
-                    // DB 컬럼명을 코드에서 사용하는 이름(sessions, availableSlots)으로 매핑
-                    const mappedResponses = responsesRes.data.map(r => ({
-                        userName: r.user_name,
-                        sessions: r.selected_sessions,
-                        availableSlots: r.available_slots
-                    }));
-                    setResponses(mappedResponses);
-                }
-            } catch (error) {
-                console.error("데이터 로딩 실패:", error);
-            } finally {
-                setLoading(false);
+    const fetchAllData = async () => {
+        if (!roomId) return;
+        
+        try {
+            const [roomRes, responsesRes] = await Promise.all([
+                supabase.from("ensemble_rooms").select("*").eq("id", roomId).single(),
+                supabase.from("ensemble_availability").select("*").eq("room_id", roomId)
+            ]);
+            if (roomRes.error || !roomRes.data) {
+                // 방이 삭제되었거나 존재하지 않는 경우 처리
+                alert("존재하지 않거나 이미 확정이 완료되어 종료된 조율 방입니다.");
+                router.replace("/");
+                return;
             }
-        };
+            if (roomRes.data) {
+                if (roomRes.data.status === 'confirmed') {
+                    alert("이미 최종 확정이 완료된 합주입니다. 메인 화면에서 확인해주세요.");
+                    router.replace("/");
+                    return;
+                }
+                setEnsembleData({
+                    title: roomRes.data.title,
+                    location: roomRes.data.location,
+                    dates: roomRes.data.target_dates,
+                    startTime: roomRes.data.start_time_limit,
+                    endTime: roomRes.data.end_time_limit
+                });
+            }
+
+            if (responsesRes.data) {
+                const mappedResponses = responsesRes.data.map(r => ({
+                    userName: r.user_name,
+                    sessions: r.selected_sessions,
+                    availableSlots: r.available_slots
+                }));
+                setResponses(mappedResponses);
+            }
+        } catch (error) {
+            console.error("데이터 로딩 실패:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // useEffect 내부에서 초기 로드 및 실시간 구독 설정
+    useEffect(() => {
+        setUserName(localStorage.getItem("ensembleUser") || "방문자");
+        
+        // 초기 데이터 로드
         fetchAllData();
+
+        // Supabase 실시간 구독 (Realtime)
+        const channel = supabase
+            .channel(`room-updates-${roomId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*', // INSERT, UPDATE, DELETE 모두 감지
+                    schema: 'public',
+                    table: 'ensemble_availability',
+                    filter: `room_id=eq.${roomId}`
+                },
+                () => {
+                    // 데이터 변경이 감지되면 다시 불러오기
+                    fetchAllData();
+                }
+            )
+            .subscribe();
+
+        // 컴포넌트 언마운트 시 구독 해제
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [roomId]);
 
     // 컴포넌트 내부 상단에 추가
@@ -134,7 +163,12 @@ export default function ReservationEnsembleResult() {
         });
     };
 
-    // ✨ 최종 일괄 확정 처리 함수
+    // 돌아가기 함수 추가
+    const handleGoBack = () => {
+      router.push(`/ensembleCreate/select?id=${roomId}`);
+    };
+
+    // 최종 일괄 확정 처리 함수
     const handleFinalConfirm = async () => {
         if (selectedTimes.size === 0) {
             alert("확정할 시간대를 최소 하나 이상 선택해주세요.");
@@ -168,15 +202,30 @@ export default function ReservationEnsembleResult() {
 
             const results = await Promise.all(insertPromises);
             const hasError = results.some(res => res.error);
-            if (hasError) throw new Error("일부 일정 저장에 실패했습니다.");
+            if (hasError) {
+              console.error("저장 에러 상세:", results.map(r => r.error));
+              throw new Error("일정 저장에 실패했습니다.");
+            }
 
-            // 2. 조율 방 상태를 'confirmed'로 업데이트 (중복 확정 방지)
+            // 조율 방 상태를 'confirmed'로 업데이트 (중복 확정 방지)
             const { error: updateError } = await supabase
                 .from("ensemble_rooms")
                 .update({ status: 'confirmed' })
                 .eq("id", roomId);
-
+            
             if (updateError) throw updateError;
+            
+            // 저장이 완벽히 끝난 것을 확인한 후, 조율 데이터를 청소합니다.
+            // 방을 지우면 Cascade 설정에 의해 availability 데이터도 같이 지워집니다.
+            const { error: deleteError } = await supabase
+                .from("ensemble_rooms")
+                .delete()
+                .eq("id", roomId);
+
+            if (deleteError) {
+                console.warn("데이터 청소 중 오류 발생:", deleteError);
+                // 저장은 성공했으므로 여기서 throw를 하지는 않습니다.
+            }
 
             alert(`${selectedTimes.size}개의 합주가 모두 확정되었습니다!`);
             router.replace("/"); 
@@ -295,29 +344,41 @@ export default function ReservationEnsembleResult() {
               </div>
             </div>
 
-            {/* 최종 확정 버튼 */}
-            <button 
-              onClick={handleFinalConfirm}
-              disabled={selectedTimes.size === 0 || isSubmitting}
-              className={`w-full py-4 flex items-center justify-center gap-3 font-extrabold rounded-2xl transition-all shadow-xl ${
-                selectedTimes.size > 0 && !isSubmitting
-                ? "bg-[#238636] hover:bg-[#2ea043] text-white scale-[1.02]"
-                : "bg-gray-800 text-gray-500 cursor-not-allowed"
-              }`}
-            >
-              {isSubmitting ? (
-                "확정 처리 중..."
-              ) : (
-                <>
-                  <PlusCircle className="w-5 h-5" />
-                  {selectedTimes.size}개의 일정 최종 확정하기
-                </>
-              )}
-            </button>
-            
-            <p className="text-center text-[11px] text-gray-500">
-                확정 버튼을 누르면 메인 캘린더에 일괄 등록되며, 이 조율 방은 닫힙니다.
-            </p>
+
+            <div className="flex flex-col gap-3">
+              {/* ✨ 수정하기 버튼 추가 */}
+              <button 
+                onClick={handleGoBack}
+                className="w-full py-3 flex items-center justify-center gap-2 font-semibold rounded-2xl border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white transition-all group"
+              >
+                <Clock className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                내 시간 수정하기 (이전 단계)
+              </button>
+
+              {/* 최종 확정 버튼 */}
+              <button 
+                onClick={handleFinalConfirm}
+                disabled={selectedTimes.size === 0 || isSubmitting}
+                className={`w-full py-4 flex items-center justify-center gap-3 font-extrabold rounded-2xl transition-all shadow-xl ${
+                  selectedTimes.size > 0 && !isSubmitting
+                  ? "bg-[#238636] hover:bg-[#2ea043] text-white scale-[1.02]"
+                  : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {isSubmitting ? (
+                  "확정 처리 중..."
+                ) : (
+                  <>
+                    <PlusCircle className="w-5 h-5" />
+                    {selectedTimes.size}개의 일정 최종 확정하기
+                  </>
+                )}
+              </button>
+              
+              <p className="text-center text-[11px] text-gray-500">
+                  확정 버튼을 누르면 메인 캘린더에 일괄 등록되며, 이 조율 방은 닫힙니다.
+              </p>
+            </div>
           </section>
         </div>
       </main>
