@@ -25,6 +25,11 @@ export default function ReservationListView({ onItemClick }: Props) {
       }
       groups[res.date].push(res);
     });
+    // ✅ 날짜별 시작시간 오름차순 정렬
+    Object.keys(groups).forEach((date) => {
+      groups[date].sort((a, b) => a.start_time.localeCompare(b.start_time));
+      // start_time이 "HH:mm:ss" 또는 "HH:mm" 형태면 localeCompare로 충분합니다.
+    });
 
     return groups;
   }, [reservations]);

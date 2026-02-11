@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Users, Clock, Calendar as CalendarIcon, Check, User, PlusCircle } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
 import { supabase } from "@/utils/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 
 export default function ReservationEnsembleResult() {
+    const queryClient = useQueryClient();
     const router = useRouter();
     const searchParams = useSearchParams();
     const roomId = searchParams.get("id"); // URL에서 ?id=... 값을 가져옴
@@ -226,12 +228,15 @@ export default function ReservationEnsembleResult() {
               throw new Error("일정 저장에 실패했습니다.");
             }
 
+            await queryClient.invalidateQueries({ queryKey: ["reservations"], exact: false });
+            await queryClient.refetchQueries({ queryKey: ["reservations"], type: "active", exact: false });
+
             // 조율 방 상태를 'confirmed'로 업데이트 (중복 확정 방지)
             const { error: updateError } = await supabase
                 .from("ensemble_rooms")
                 .update({ status: 'confirmed' })
                 .eq("id", roomId);
-            
+
             if (updateError) throw updateError;
             
             // 저장이 완벽히 끝난 것을 확인한 후, 조율 데이터를 청소합니다.
@@ -252,6 +257,7 @@ export default function ReservationEnsembleResult() {
         } catch (err: any) {
             console.error("확정 저장 실패:", err);
             alert(`오류 발생: ${err.message}`);
+            
         } finally {
             setIsSubmitting(false);
         }

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
+import RealtimeProvider from "./RealtimeProvider";
 
 export default function QueryProvider({
   children,
@@ -24,7 +25,9 @@ export default function QueryProvider({
 
   return (
     <QueryClientProvider client={queryClient}>
+      <RealtimeProvider>
       {children}
+      </RealtimeProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

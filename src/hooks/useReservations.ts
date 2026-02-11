@@ -4,6 +4,7 @@ import { Reservation } from "@/types";
 import { formatToDbDate } from "@/utils/date";
 import type { Ensemble, Participant } from "@/types/ensemble_detail";
 import type { Concert, SetListItem } from "@/types/concert_detail";
+import { useEffect } from "react"; // ✅ 추가
 
 // Supabase에서 가져온 데이터 타입 (DB 원본)
 type EnsembleRow = {
@@ -168,8 +169,8 @@ const rowToEnsemble = (row: EnsembleRow): Ensemble => ({
   room_id: row.room_id,
   title: row.title,
   date: row.date,
-  start_time: row.start_time, // DB에 이미 HH:mm 형식으로 저장 중
-  end_time: row.end_time,
+  start_time: formatTime(row.start_time), // DB에 이미 HH:mm 형식으로 저장 중
+  end_time: formatTime(row.end_time),
   location: row.location || undefined,
   participants: row.participants || [],
   created_at: row.created_at,
@@ -230,6 +231,50 @@ const concertToReservation = (c: Concert): Reservation => ({
   end_time: c.end_time,
   created_at: c.created_at,
 });
+
+// ✅ [NEW] 실시간 구독 훅 추가
+export const useRealtimeReservations = () => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("reservations-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ensemble" },
+        (payload) => {
+          console.log("✅ realtime ENSEMBLE:", payload);
+          queryClient.invalidateQueries({ queryKey: ["reservations"], exact: false });
+          queryClient.refetchQueries({ queryKey: ["reservations"], type: "active", exact: false });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "concerts" },
+        (payload) => {
+          console.log("✅ realtime CONCERTS:", payload);
+          queryClient.invalidateQueries({ queryKey: ["reservations"], exact: false });
+          queryClient.refetchQueries({ queryKey: ["reservations"], type: "active", exact: false });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "personal_events" },
+        (payload) => {
+          console.log("✅ realtime PERSONAL:", payload);
+          queryClient.invalidateQueries({ queryKey: ["reservations"], exact: false });
+          queryClient.refetchQueries({ queryKey: ["reservations"], type: "active", exact: false });
+        }
+      )
+      .subscribe((status) => {
+        console.log("📡 reservations-realtime status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+};
 
 // [Read] 특정 기간(주간/월간)의 예약 가져오기
 export const useReservations = (startDate: Date, endDate: Date) => {
@@ -326,7 +371,7 @@ export const useAddPersonalEvent = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["reservations"] });
-      await queryClient.refetchQueries({ queryKey: ["reservations"], type: "active" });
+      await queryClient.refetchQueries({ queryKey: ["reservations"], exact: false });
       alert("개인 일정이 추가되었습니다.");
     },
     onError: (error) => {
@@ -358,8 +403,8 @@ export const useDeleteReservation = () => {
       if (error) throw error;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["reservations"] });
-      await queryClient.refetchQueries({ queryKey: ["reservations"], type: "active" });
+      queryClient.invalidateQueries({ queryKey: ["reservations"], exact: false });
+      queryClient.refetchQueries({ queryKey: ["reservations"], type: "active", exact: false });
       alert("예약이 취소되었습니다.");
     },
     onError: (error) => {

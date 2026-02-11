@@ -267,7 +267,7 @@ export default function ReservationEnsembleCreate() {
                 className="grid grid-cols-7 gap-2 text-center text-xs"
               >
                 {dates.map((date) => {
-                  const dateStr = date.toISOString().slice(0, 10);
+                  const dateStr = format(date, 'yyyy-MM-dd');
                   const selected = selectedDates.has(dateStr);
                   const isCurrentMonth = isSameMonth(date, currentMonth);
 
