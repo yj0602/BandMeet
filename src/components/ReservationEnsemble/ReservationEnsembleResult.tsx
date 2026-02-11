@@ -22,12 +22,18 @@ export default function ReservationEnsembleResult() {
 
     const fetchAllData = async () => {
         if (!roomId) return;
+        
         try {
             const [roomRes, responsesRes] = await Promise.all([
                 supabase.from("ensemble_rooms").select("*").eq("id", roomId).single(),
                 supabase.from("ensemble_availability").select("*").eq("room_id", roomId)
             ]);
-
+            if (roomRes.error || !roomRes.data) {
+                // 방이 삭제되었거나 존재하지 않는 경우 처리
+                alert("존재하지 않거나 이미 확정이 완료되어 종료된 조율 방입니다.");
+                router.replace("/");
+                return;
+            }
             if (roomRes.data) {
                 if (roomRes.data.status === 'confirmed') {
                     alert("이미 최종 확정이 완료된 합주입니다. 메인 화면에서 확인해주세요.");
@@ -157,7 +163,7 @@ export default function ReservationEnsembleResult() {
         });
     };
 
-    // ✨ 최종 일괄 확정 처리 함수
+    // 최종 일괄 확정 처리 함수
     const handleFinalConfirm = async () => {
         if (selectedTimes.size === 0) {
             alert("확정할 시간대를 최소 하나 이상 선택해주세요.");
@@ -191,15 +197,30 @@ export default function ReservationEnsembleResult() {
 
             const results = await Promise.all(insertPromises);
             const hasError = results.some(res => res.error);
-            if (hasError) throw new Error("일부 일정 저장에 실패했습니다.");
+            if (hasError) {
+              console.error("저장 에러 상세:", results.map(r => r.error));
+              throw new Error("일정 저장에 실패했습니다.");
+            }
 
-            // 2. 조율 방 상태를 'confirmed'로 업데이트 (중복 확정 방지)
+            // 조율 방 상태를 'confirmed'로 업데이트 (중복 확정 방지)
             const { error: updateError } = await supabase
                 .from("ensemble_rooms")
                 .update({ status: 'confirmed' })
                 .eq("id", roomId);
-
+            
             if (updateError) throw updateError;
+            
+            // 저장이 완벽히 끝난 것을 확인한 후, 조율 데이터를 청소합니다.
+            // 방을 지우면 Cascade 설정에 의해 availability 데이터도 같이 지워집니다.
+            const { error: deleteError } = await supabase
+                .from("ensemble_rooms")
+                .delete()
+                .eq("id", roomId);
+
+            if (deleteError) {
+                console.warn("데이터 청소 중 오류 발생:", deleteError);
+                // 저장은 성공했으므로 여기서 throw를 하지는 않습니다.
+            }
 
             alert(`${selectedTimes.size}개의 합주가 모두 확정되었습니다!`);
             router.replace("/"); 
