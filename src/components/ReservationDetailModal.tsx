@@ -41,7 +41,7 @@ export default function ReservationDetailModal({
     if (confirm("정말로 이 예약을 삭제하시겠습니까?")) {
       deleteMutation.mutate({ 
           id: reservation.id, 
-          kind: reservation.kind || "ensemble" // kind가 없을 경우를 대비해 기본값 설정
+          kind: reservation.kind || "ensemble"
         }, {
         onSuccess: () => {
           onDeleteSuccess();
@@ -130,16 +130,30 @@ export default function ReservationDetailModal({
                   {reservation.end_time.slice(0, 5)}
                 </span>
               </div>
+
+              {/* 예약자 이름 표시 (개인 일정인 경우만) */}
+              {reservation.kind === "personal" && reservation.name && (
+                <div className="flex items-center gap-3 text-gray-200">
+                  <div className="p-2 bg-blue-500/10 rounded-lg">
+                    <User className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <span className="text-lg font-medium">{reservation.name}</span>
+                </div>
+              )}
             </div>
           </div>
-         {/* 상세보기 버튼 */}
-         <button
-           onClick={handleGoDetail}
-           className="w-full py-4 rounded-xl border border-blue-900/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 flex items-center justify-center gap-2 transition-all group"
-         >
-           <ExternalLink className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          <span className="font-bold">상세보기</span>
-          </button>
+
+          {/* 상세보기 버튼 (개인 일정이 아닌 경우만) */}
+          {reservation.kind !== "personal" && (
+            <button
+              onClick={handleGoDetail}
+              className="w-full py-4 rounded-xl border border-blue-900/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 flex items-center justify-center gap-2 transition-all group"
+            >
+              <ExternalLink className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span className="font-bold">상세보기</span>
+            </button>
+          )}
+
           {/* 하단 삭제 버튼 */}
           <button
             onClick={handleDelete}

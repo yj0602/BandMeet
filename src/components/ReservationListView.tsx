@@ -99,6 +99,14 @@ export default function ReservationListView({ onItemClick }: Props) {
                     >
                       {res.purpose}
                     </h4>
+
+                    {/* 개인 일정일 경우 예약자 이름 표시 */}
+                    {res.kind === "personal" && res.name && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <User className="w-3 h-3 text-gray-400" />
+                        <span className="text-xs text-gray-400">{res.name}</span>
+                      </div>
+                    )}
                   </button>
                 );
               })}

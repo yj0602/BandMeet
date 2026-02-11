@@ -9,11 +9,14 @@ import ReservationDetailModal from "@/components/ReservationDetailModal";
 import ReservationListView from "@/components/ReservationListView";
 import { Reservation } from "@/types";
 import { useRouter } from "next/navigation";
+import ReservationModal from "@/components/ReservationModal";
 import Link from "next/link";
 
 export default function Home() {
   const router = useRouter();
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ date: Date; time: string } | null>(null);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] =
@@ -198,6 +201,32 @@ export default function Home() {
                   </div>
 
                   <div className="p-2 space-y-2">
+                    {/* 개인 일정 추가 */}
+                  <button
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      setSelectedSlot({ date: new Date(), time: "19:00" });
+                      setIsCreateModalOpen(true);
+                    }}
+                    className="w-full group flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-800 bg-[#121212] hover:bg-[#151515] transition"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                      <Calendar className="w-5 h-5 text-emerald-300" />
+                    </div>
+
+                    <div className="flex-1 text-left">
+                      <div className="text-sm font-bold text-gray-100 group-hover:text-white">
+                        개인 일정 추가
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        개인 연습/회의/약속/레슨 등 등록
+                      </div>
+                    </div>
+
+                    <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-200 border border-emerald-500/20">
+                      NEW
+                    </span>
+                  </button>
                     {/* 합주 생성 */}
                     <button
                       onClick={() => {
@@ -242,7 +271,7 @@ export default function Home() {
                         </div>
                       </div>
                       <span className="text-[10px] px-2 py-1 rounded-full bg-purple-500/10 text-purple-200 border border-purple-500/20">
-                        SET
+                        NEW
                       </span>
                     </button>
                   </div>
@@ -258,6 +287,16 @@ export default function Home() {
                 </div>
               </div>
             </>
+          )}
+
+          {selectedSlot && (
+            <ReservationModal
+              isOpen={isCreateModalOpen}
+              onClose={() => setIsCreateModalOpen(false)}
+              selectedDate={selectedSlot.date}
+              startTime={selectedSlot.time}
+              onSuccess={() => setIsCreateModalOpen(false)}
+            />
           )}
 
           {/* 플로팅 버튼 (항상 표시) */}
