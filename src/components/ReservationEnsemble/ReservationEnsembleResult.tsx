@@ -16,6 +16,7 @@ export default function ReservationEnsembleResult() {
     const [responses, setResponses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState("");
+    const [excludedUsers, setExcludedUsers] = useState<Set<string>>(new Set());
 
     const [selectedTimes, setSelectedTimes] = useState<Set<string>>(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -95,19 +96,34 @@ export default function ReservationEnsembleResult() {
         };
     }, [roomId]);
 
+    // 멤버 클릭 시 토글 함수
+    const toggleUser = (userName: string) => {
+      setExcludedUsers((prev) => {
+        const next = new Set(prev);
+        if (next.has(userName)) {
+          next.delete(userName); // 다시 포함 (활성화)
+        } else {
+          next.add(userName); // 제외 (비활성화)
+        }
+        return next;
+      });
+    };
+
     // 컴포넌트 내부 상단에 추가
     const commonTimes = useMemo(() => {
-        if (responses.length === 0) return [];
+        // 제외되지 않은(활성화된) 멤버들만 골라냅니다.
+        const activeResponses = responses.filter(r => !excludedUsers.has(r.userName));
 
-        // 모든 멤버가 선택한 시간(availableSlots)의 교집합 찾기
-        const allAvailable = responses.map(r => r.availableSlots);
+        // 활성화된 멤버가 없으면 빈 목록 반환
+        if (activeResponses.length === 0) return [];
         
-        // 첫 번째 멤버의 시간을 기준으로 다른 모든 멤버도 가지고 있는 시간만 필터링
+        // activeResponses의 데이터로만 교집합 계산
+        const allAvailable = activeResponses.map(r => r.availableSlots);
+        
         const intersection = allAvailable[0].filter((slot: string) =>
             allAvailable.every(slots => slots.includes(slot))
         );
 
-        // 시간 순서대로 정렬 (YYYY-MM-DD HH:mm 형태이므로 문자열 정렬 가능)
         intersection.sort();
 
         // 연속된 30분 단위 슬롯들을 하나의 덩어리로 묶기 (예: 14:00, 14:30 -> 14:00~15:00)
@@ -151,7 +167,7 @@ export default function ReservationEnsembleResult() {
         }
 
         return segments;
-    }, [responses]);
+    }, [responses, excludedUsers]);
 
     // ✨ 개별 시간대 토글 함수
     const toggleTimeSelection = (timeRange: string) => {
@@ -270,28 +286,50 @@ export default function ReservationEnsembleResult() {
           <p className="mt-3 text-gray-500 text-sm">📍 {ensembleData?.location || "장소 미정"}</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* 왼쪽: 참여 멤버 목록 */}
+          {/* 왼쪽: 참여 멤버 목록 섹션 */}
           <section className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 shadow-xl h-fit">
             <div className="flex items-center gap-2 mb-4 text-[#58a6ff]">
               <Users className="w-5 h-5" />
               <h2 className="font-bold text-lg">참여 멤버 ({responses.length})</h2>
             </div>
+            <p className="text-[11px] text-gray-500 mb-4">이름을 클릭하여 특정 세션을 제외할 수 있습니다.</p>
+            
             <div className="space-y-3">
               {responses.length === 0 ? (
                 <p className="text-gray-500 text-sm italic">아직 응답한 멤버가 없습니다.</p>
               ) : (
-                responses.map((res, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 bg-[#0d1117] rounded-xl border border-gray-800">
-                    <span className="font-medium text-[#f0f6fc]">{res.userName}</span>
-                    <div className="flex gap-1">
-                      {res.sessions.map((s: string) => (
-                        <span key={s} className="text-[10px] bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded-full">
-                          {s}
+                responses.map((res, idx) => {
+                  const isExcluded = excludedUsers.has(res.userName); // ✨ 제외 여부 확인
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => toggleUser(res.userName)} // ✨ 클릭 시 토글
+                      className={`w-full flex justify-between items-center p-3 rounded-xl border transition-all cursor-pointer group ${
+                        isExcluded 
+                          ? "bg-[#0d1117] border-gray-800 opacity-60 hover:opacity-100 hover:border-gray-600" 
+                          : "bg-[#1c2128] border-[#30363d] hover:border-[#58a6ff] shadow-md"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
+                          isExcluded ? "border-gray-700 bg-transparent" : "border-[#58a6ff] bg-[#58a6ff]"
+                        }`}>
+                          {!isExcluded && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <span className={`font-medium ${isExcluded ? "text-gray-500" : "text-[#f0f6fc]"}`}>
+                          {res.userName}
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                ))
+                      </div>
+                      <div className="flex gap-1">
+                        {res.sessions.map((s: string) => (
+                          <span key={s} className="text-[10px] bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded-full">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
+                  )
+                })
               )}
             </div>
           </section>
@@ -301,7 +339,7 @@ export default function ReservationEnsembleResult() {
             <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 shadow-xl">
               <div className="flex items-center gap-2 mb-6 text-[#58a6ff]">
                 <Clock className="w-5 h-5" />
-                <h2 className="font-bold text-lg">모두 가능한 시간 목록</h2>
+                <h2 className="font-bold text-lg">가능한 시간 목록</h2>
               </div>
               
               {/* 모두 가능한 시간 목록 UI */}
