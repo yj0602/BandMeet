@@ -4,13 +4,12 @@ import React from "react";
 import { format, isToday, isTomorrow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Reservation } from "@/types";
-import { Clock } from "lucide-react";
-import { useUpcomingReservations } from "@/hooks/useReservations"; // Hook import
+import { Clock, User } from "lucide-react";
+import { useUpcomingReservations } from "@/hooks/useReservations";
 import { differenceInCalendarDays, startOfDay } from "date-fns";
 
 interface Props {
   onItemClick: (reservation: Reservation) => void;
-  // refreshKey 삭제됨
 }
 
 const getDDay = (dateStr: string) => {
@@ -20,7 +19,7 @@ const getDDay = (dateStr: string) => {
 
   if (diff === 0) return "D-0";
   if (diff > 0) return `D-${diff}`;
-  return `D+${Math.abs(diff)}`; // 혹시 과거 대비용
+  return `D+${Math.abs(diff)}`;
 };
 
 const getDDayClass = (dateStr: string) => {
@@ -35,7 +34,6 @@ const getDDayClass = (dateStr: string) => {
 };
 
 export default function UpcomingReservations({ onItemClick }: Props) {
-  // React Query Hook 사용
   const { data: reservations = [], isLoading } = useUpcomingReservations();
 
   const getFriendlyDate = (dateStr: string) => {
@@ -82,14 +80,24 @@ export default function UpcomingReservations({ onItemClick }: Props) {
                   {res.start_time.slice(0, 5)} ~ {res.end_time.slice(0, 5)}
                 </span>
               </div>
-                <div className="flex justify-between items-end mt-1">
+
+              <div className="flex justify-between items-end mt-1">
+                <div className="flex-1">
                   <div className="font-medium text-gray-200 text-sm truncate">
                     {res.purpose}
                   </div>
-                  <span className={`text-xs font-mono ${getDDayClass(res.date)}`}>
-                    {getDDay(res.date)}
-                  </span>
+                  {/* 개인 일정일 경우 예약자 이름 표시 */}
+                  {res.kind === "personal" && res.name && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <User className="w-3 h-3 text-gray-500" />
+                      <span className="text-xs text-gray-500">{res.name}</span>
+                    </div>
+                  )}
                 </div>
+                <span className={`text-xs font-mono ml-2 ${getDDayClass(res.date)}`}>
+                  {getDDay(res.date)}
+                </span>
+              </div>
             </div>
           ))
         )}

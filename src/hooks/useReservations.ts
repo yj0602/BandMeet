@@ -39,6 +39,18 @@ type ConcertRow = {
   memo?: string;
 };
 
+// 개인 일정 타입
+type PersonalEventRow = {
+  id: string;
+  name: string;
+  purpose: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  created_at: string;
+  updated_at: string;
+};
+
 // ============================================
 // 댓글 관련 훅
 // ============================================
@@ -181,8 +193,20 @@ const rowToConcert = (row: ConcertRow): Concert => ({
   memo: row.memo,
 });
 
+// 개인 일정 → 예약 변환
+const personalEventToReservation = (p: PersonalEventRow): Reservation => ({
+  id: p.id,
+  purpose: p.purpose,
+  kind: "personal",
+  date: p.date,
+  start_time: formatTime(p.start_time),
+  end_time: formatTime(p.end_time),
+  created_at: p.created_at,
+  name: p.name,
+});
+
 /**
- * 합주, 공연 타입 => 예약 변환 함수
+ * 합주, 공연, 개인일정 타입 => 예약 변환 함수
  */
 
 const ensembleToReservation = (e: Ensemble): Reservation => ({
@@ -215,20 +239,21 @@ export const useReservations = (startDate: Date, endDate: Date) => {
       const start = formatToDbDate(startDate);
       const end = formatToDbDate(endDate);
 
-      // ✅ 두 테이블 동시에 조회
-      const [concertsRes, ensembleRes] = await Promise.all([
+      const [concertsRes, ensembleRes, personalRes] = await Promise.all([
         supabase.from("concerts").select("*").gte("date", start).lte("date", end),
-        supabase.from("ensemble").select("*").gte("date", start).lte("date", end)
+        supabase.from("ensemble").select("*").gte("date", start).lte("date", end),
+        supabase.from("personal_events").select("*").gte("date", start).lte("date", end)
       ]);
 
       if (concertsRes.error) throw concertsRes.error;
       if (ensembleRes.error) throw ensembleRes.error;
+      if (personalRes.error) throw personalRes.error;
 
       const concertList = (concertsRes.data as ConcertRow[]).map(rowToConcert).map(concertToReservation);
       const ensembleList = (ensembleRes.data as EnsembleRow[]).map(rowToEnsemble).map(ensembleToReservation);
+      const personalList = (personalRes.data as PersonalEventRow[]).map(personalEventToReservation);
 
-      // 합친 후 시간순 정렬
-      return [...concertList, ...ensembleList].sort((a, b) => 
+      return [...concertList, ...ensembleList, ...personalList].sort((a, b) => 
         a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
       );
     },
@@ -242,7 +267,7 @@ export const useUpcomingReservations = () => {
     queryFn: async () => {
       const today = formatToDbDate(new Date());
 
-      const [concertsRes, ensembleRes] = await Promise.all([
+      const [concertsRes, ensembleRes, personalRes] = await Promise.all([
         supabase
           .from("concerts")
           .select("*")
@@ -252,11 +277,17 @@ export const useUpcomingReservations = () => {
           .from("ensemble")
           .select("*")
           .gte("date", today)
+          .order("date", { ascending: true }),
+        supabase
+          .from("personal_events")
+          .select("*")
+          .gte("date", today)
           .order("date", { ascending: true })
       ]);
 
       if (concertsRes.error) console.error("Concert fetch error:", concertsRes.error);
       if (ensembleRes.error) console.error("Ensemble fetch error:", ensembleRes.error);
+      if (personalRes.error) console.error("Personal events fetch error:", personalRes.error);
 
       const concertList = (concertsRes.data as ConcertRow[] || [])
         .map(rowToConcert)
@@ -266,7 +297,10 @@ export const useUpcomingReservations = () => {
         .map(rowToEnsemble)
         .map(ensembleToReservation);
 
-      return [...concertList, ...ensembleList].sort((a, b) => {
+      const personalList = (personalRes.data as PersonalEventRow[] || [])
+        .map(personalEventToReservation);
+
+      return [...concertList, ...ensembleList, ...personalList].sort((a, b) => {
         // 날짜순, 날짜가 같으면 시작 시간순 정렬
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.start_time.localeCompare(b.start_time);
@@ -275,22 +309,28 @@ export const useUpcomingReservations = () => {
   });
 };
 
-// [Create] 예약 추가하기 (현재는 사용 안 함)
-export const useAddReservation = () => {
+// 개인 일정 추가 훅
+export const useAddPersonalEvent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (newRes: Omit<Reservation, "id" | "created_at">) => {
-      // TODO: 나중에 ensemble 추가 기능 구현
-      throw new Error("Not implemented");
+    mutationFn: async (newEvent: Omit<PersonalEventRow, "id" | "created_at" | "updated_at">) => {
+      const { data, error } = await supabase
+        .from("personal_events")
+        .insert(newEvent)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reservations"] });
-      alert("예약이 완료되었습니다.");
+      alert("개인 일정이 추가되었습니다.");
     },
     onError: (error) => {
       console.error(error);
-      alert("예약에 실패했습니다.");
+      alert("일정 추가에 실패했습니다.");
     },
   });
 };
@@ -301,7 +341,18 @@ export const useDeleteReservation = () => {
 
   return useMutation({
     mutationFn: async ({ id, kind }: { id: string; kind: string }) => {
-      const table = kind === "ensemble" ? "ensemble" : "concerts";
+      let table: string;
+      
+      if (kind === "ensemble") {
+        table = "ensemble";
+      } else if (kind === "concert") {
+        table = "concerts";
+      } else if (kind === "personal") {
+        table = "personal_events";
+      } else {
+        throw new Error("Unknown kind: " + kind);
+      }
+
       const { error } = await supabase.from(table).delete().eq("id", id);
       if (error) throw error;
     },
@@ -323,7 +374,7 @@ export const useAllUpcomingReservations = () => {
     queryFn: async () => {
       const today = formatToDbDate(new Date());
 
-      const [concertsRes, ensembleRes] = await Promise.all([
+      const [concertsRes, ensembleRes, personalRes] = await Promise.all([
         supabase
           .from("concerts")
           .select("*")
@@ -331,6 +382,11 @@ export const useAllUpcomingReservations = () => {
           .order("date", { ascending: true }),
         supabase
           .from("ensemble")
+          .select("*")
+          .gte("date", today)
+          .order("date", { ascending: true }),
+        supabase
+          .from("personal_events")
           .select("*")
           .gte("date", today)
           .order("date", { ascending: true })
@@ -344,7 +400,10 @@ export const useAllUpcomingReservations = () => {
         .map(rowToEnsemble)
         .map(ensembleToReservation);
 
-      return [...concertList, ...ensembleList].sort((a, b) => {
+      const personalList = (personalRes.data as PersonalEventRow[] || [])
+        .map(personalEventToReservation);
+
+      return [...concertList, ...ensembleList, ...personalList].sort((a, b) => {
         // 날짜순, 날짜가 같으면 시작 시간순 정렬
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.start_time.localeCompare(b.start_time);

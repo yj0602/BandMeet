@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
+  User,
 } from "lucide-react";
 import { Reservation } from "@/types";
 import { useReservations } from "@/hooks/useReservations"; // React Query Hook
@@ -235,6 +236,15 @@ export default function WeeklyTimetable({
                             >
                               {res.purpose}
                             </div>
+                            {/* 개인 일정일 경우 예약자 이름 표시 */}
+                            {res.kind === "personal" && res.name && (
+                              <div className="flex items-center gap-0.5 mt-0.5">
+                                <User className="w-2 h-2 md:w-2.5 md:h-2.5 text-gray-400" />
+                                <span className="text-[8px] md:text-[9px] text-gray-400 truncate">
+                                  {res.name}
+                                </span>
+                              </div>
+                            )}
                           </>
                         )}
                       </button>
@@ -253,7 +263,7 @@ export default function WeeklyTimetable({
           selectedDate={selectedSlot.date}
           startTime={selectedSlot.time}
           // React Query Mutation이 성공하면 자동으로 리렌더링되므로 onSuccess는 비워둬도 됨 (Modal 닫기만 처리)
-          onSuccess={() => setIsCreateModalOpen(false)}
+          onSuccess={() => setIsCreateModalModal(false)}
         />
       )} */}
     </div>
