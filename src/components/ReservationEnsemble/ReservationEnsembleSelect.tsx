@@ -6,6 +6,7 @@ import { timeToMinutes } from "@/utils/date";
 import { Fragment } from "react"
 import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
+import Link from "next/link";
 
 export default function ReservationEnsembleSelect() {
     const router = useRouter();
@@ -330,52 +331,44 @@ export default function ReservationEnsembleSelect() {
     <div className="min-h-screen bg-[#0d1117] flex flex-col items-center p-6 text-[#c9d1d9] font-sans">
       {/* ===== 헤더 (page1과 동일 톤) ===== */}
       <header className="w-full max-w-2xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
-        <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
-          <span className="text-[#58a6ff]">👥</span>
-          BandMeet
-        </div>
+        <Link href="/" className="flex items-center gap-2">
+            <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
+            <span className="text-[#58a6ff]">👥</span>
+            BandMeet
+            </div>
+        </Link>
         {/* 로그인 영역 */}
         <div className="flex items-center gap-3 relative">
-            {isLoggedIn ? (
-                <div className="flex items-center gap-2">
-                    {/* 공유 버튼 추가 */}
-                    <button
-                        onClick={handleShareLink}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#58a6ff] hover:bg-[#58a6ff]/10 border border-[#30363d] rounded-lg transition-colors"
-                    >
-                        <span className="text-[14px]">🔗</span>
-                        링크 공유
-                    </button>
+            <div className="flex items-center gap-2">
+                {/* ✨ 링크 공유 버튼: 로그인 여부와 상관없이 항상 보임 */}
+                <button
+                onClick={handleShareLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#58a6ff] hover:bg-[#58a6ff]/10 border border-[#30363d] rounded-lg transition-colors"
+                >
+                <span className="text-[14px]">🔗</span>
+                링크 공유
+                </button>
 
+                {/* ✨ 로그인 상태일 때만 추가로 보여주는 영역 */}
+                {isLoggedIn && (
+                <>
                     {/* 로그아웃 버튼 */}
                     <button
-                        onClick={handleLogout}
-                        className="px-2 py-1.5 text-[10px] font-medium text-gray-500 hover:text-red-400 transition-colors border border-gray-800 rounded-lg"
+                    onClick={handleLogout}
+                    className="px-2 py-1.5 text-[10px] font-medium text-gray-500 hover:text-red-400 transition-colors border border-gray-800 rounded-lg"
                     >
-                        로그아웃
+                    로그아웃
                     </button>
                     
                     {/* 유저 이름 */}
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1a1a1a] border border-gray-700 text-xs text-gray-300">
-                        {userName}님
+                    {userName}님
                     </div>
-                </div>
-            ) : (
-                <button
-                    onClick={() => {
-                        const nameInput = document.querySelector('input[placeholder="이름"]') as HTMLInputElement;
-                        nameInput?.focus();
-                    }}
-                    className="flex items-center gap-1.5 rounded-full border border-gray-700
-                            bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300
-                            hover:bg-gray-800 hover:text-white transition-colors"
-                >
-                    <span>로그인</span>
-                </button>
-            )}
-            {/* 사용자 아이콘 */}
-            <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center">
-                <User className="w-5 h-5 text-gray-400" />
+                    <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-400" />
+                    </div>
+                </>
+                )}
             </div>
 
             {/* "링크를 복사해서 친구들에게 보내라" 안내 메시지 창 */}

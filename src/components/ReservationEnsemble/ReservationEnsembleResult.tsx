@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Users, Clock, Calendar as CalendarIcon, Check, User } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
 import { supabase } from "@/utils/supabase";
+import Link from "next/link";
 
 export default function ReservationEnsembleResult() {
     const router = useRouter();
@@ -176,10 +177,12 @@ export default function ReservationEnsembleResult() {
     <div className="min-h-screen bg-[#0d1117] flex flex-col items-center p-6 text-[#c9d1d9] font-sans">
       {/* 상단 헤더 (Page 1, 2와 동일) */}
       <header className="w-full max-w-2xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
-        <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
-          <span className="text-[#58a6ff]">👥</span>
-            BandMeet
-        </div>
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
+            <span className="text-[#58a6ff]">👥</span>
+              BandMeet
+          </div>
+        </Link>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1a1a1a] border border-gray-700 text-xs text-gray-300">
             {userName}님

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useMemo, useEffect } from 'react';
 import { timeToMinutes } from "@/utils/date";
 import { Clock, Check, MapPin} from "lucide-react";
+import Link from "next/link";
 import {
   startOfMonth,
   endOfMonth,
@@ -203,26 +204,12 @@ export default function ReservationEnsembleCreate() {
       
       {/* 상단 헤더: 보더 라인 추가 */}
       <header className="w-full max-w-2xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
-        <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
-          <span className="text-[#58a6ff]">👥</span>
-          BandMeet
-        </div>
-
-        {/* 로그인 영역*/}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              // TODO: 로그인 로직 연결
-            }}
-            className="flex items-center gap-1.5 rounded-full border border-gray-700
-                      bg-[#1a1a1a] px-3 py-1.5 text-xs text-gray-300
-                      hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            <span>로그인</span>
-          </button>
-
-          <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600" />
-        </div>
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
+            <span className="text-[#58a6ff]">👥</span>
+            BandMeet
+          </div>
+        </Link>
       </header>
 
       {/* 메인 입력 섹션: 배경을 더 짙은 다크로 */}
