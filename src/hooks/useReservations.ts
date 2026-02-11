@@ -324,8 +324,9 @@ export const useAddPersonalEvent = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reservations"] });
+      await queryClient.refetchQueries({ queryKey: ["reservations"], type: "active" });
       alert("개인 일정이 추가되었습니다.");
     },
     onError: (error) => {
@@ -356,8 +357,9 @@ export const useDeleteReservation = () => {
       const { error } = await supabase.from(table).delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reservations"] });
+      await queryClient.refetchQueries({ queryKey: ["reservations"], type: "active" });
       alert("예약이 취소되었습니다.");
     },
     onError: (error) => {
