@@ -2,12 +2,14 @@
 "use client"
 
 import { useState, useEffect } from "react";
+import {
+  useEnsembleComments, useAddEnsembleComment, useDeleteEnsembleComment
+} from "@/hooks/useReservations"
 import type { Ensemble, Participant } from "@/types/ensemble_detail";
 import { 
   Calendar, 
   Clock, 
   MapPin, 
-  LogOut, 
   User, 
   MessageSquare, 
   Trash2, 
@@ -19,37 +21,8 @@ type Props = {
   participants: Participant[];
 };
 
-type LocalComment = {
-  id: string;
-  content: string;
-  created_at: string;
-}
-
 function format_time_range(start_time: string, end_time: string) {
   return `${start_time} ~ ${end_time}`;
-}
-
-function make_storage_key(ensemble_id: string) {
-  return `bandmeet:ensemble:${ensemble_id}:comments`;
-}
-
-function load_comments(ensemble_id: string): LocalComment[] {
-  try {
-    const raw = localStorage.getItem(make_storage_key(ensemble_id));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function save_comments(ensemble_id: string, comments: LocalComment[]) {
-  try {
-    localStorage.setItem(make_storage_key(ensemble_id), JSON.stringify(comments));
-  } catch {
-    // storage full / blocked 등은 무시
-  }
 }
 
 function get_instrument_icon(sessions?: string[]) {
@@ -67,7 +40,8 @@ function get_instrument_icon(sessions?: string[]) {
   return "🎵";
 }
 
-export default function EnsembleInfoSection({ ensemble, participants }: Props) {
+  export default function EnsembleInfoSection({ ensemble, participants }: Props) {
+  const [comment_text, set_comment_text] = useState("");
 
   useEffect(() => {
     // 1. 현재 body의 스타일을 백업 (나갈 때 복구하기 위해)
@@ -85,37 +59,29 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
     };
   }, []);
 
-  // const storage_key = useMemo(() => make_storage_key(ensemble.id), [ensemble.id]);
+ const { data: comments = [], isLoading } = useEnsembleComments(ensemble.id);
+  const addComment = useAddEnsembleComment();
+  const deleteComment = useDeleteEnsembleComment();
 
-  // 최초 로드
-  const [comments, set_comments] = useState<LocalComment[]>(() => {
-    if (typeof window === "undefined") return [];
-    return load_comments(ensemble.id);
-  });
-  const [comment_text, set_comment_text] = useState("");
-
-  // 변경 시 저장 (옵션)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    save_comments(ensemble.id, comments);
-  }, [ensemble.id, comments]);
-
-    const on_add_comment = () => {
+  const on_add_comment = async () => {
     const content = comment_text.trim();
     if (!content) return;
 
-    const new_comment: LocalComment = {
-      id: crypto.randomUUID(),
+    await addComment.mutateAsync({
+      ensembleId: ensemble.id,
       content,
-      created_at: new Date().toISOString(),
-    };
+    });
 
-    set_comments((prev) => [new_comment, ...prev]); // 최신이 위
     set_comment_text("");
   };
 
-  const on_delete_comment = (id: string) => {
-    set_comments((prev) => prev.filter((c) => c.id !== id));
+  const on_delete_comment = async (commentId: string) => {
+    if (!confirm("댓글을 삭제하시겠습니까?")) return;
+    
+    await deleteComment.mutateAsync({
+      commentId,
+      ensembleId: ensemble.id,
+    });
   };
 
   return (
@@ -223,7 +189,7 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
           </div>
         </div>
 
-        {/* 회고 (댓글 UI) */}
+        {/* 회고 섹션 - 서버 연동 */}
         <div className="rounded-xl border border-gray-800 bg-[#1a1a1a] p-5 flex flex-col h-full">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="w-5 h-5 text-gray-400" />
@@ -238,23 +204,28 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
               placeholder="합주에 대한 피드백이나 메모를 남겨주세요."
               value={comment_text}
               onChange={(e) => set_comment_text(e.target.value)}
+              disabled={addComment.isPending}
             />
             <div className="flex justify-end">
               <button
                 type="button"
                 className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={on_add_comment}
-                disabled={!comment_text.trim()}
+                disabled={!comment_text.trim() || addComment.isPending}
               >
                 <Send size={14} />
-                등록
+                {addComment.isPending ? "등록 중..." : "등록"}
               </button>
             </div>
           </div>
 
           {/* 목록 */}
           <div className="mt-4 flex-1 overflow-y-auto pr-1 max-h-[300px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-[#1a1a1a] [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full">
-            {comments.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center h-24 text-gray-500 text-sm">
+                로딩 중...
+              </div>
+            ) : comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-24 text-gray-600 text-sm border-t border-dashed border-gray-800 mt-2">
                 아직 작성된 회고가 없습니다.
               </div>
@@ -271,8 +242,9 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
                       </span>
                       <button
                         type="button"
-                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors"
+                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
                         onClick={() => on_delete_comment(c.id)}
+                        disabled={deleteComment.isPending}
                       >
                         <Trash2 size={12} />
                         삭제
@@ -282,10 +254,6 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
                 ))}
               </ul>
             )}
-          </div>
-
-          <div className="mt-3 text-xs text-gray-600 flex items-center gap-1">
-             * 이 내용은 브라우저에만 임시 저장됩니다.
           </div>
         </div>
       </div>

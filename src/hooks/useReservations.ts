@@ -39,11 +39,117 @@ type ConcertRow = {
   memo?: string;
 };
 
+// ============================================
+// 댓글 관련 훅
+// ============================================
+
+type CommentRow = {
+  id: string;
+  ensemble_id: string;
+  content: string;
+  created_at: string;
+};
+
+export type EnsembleComment = {
+  id: string;
+  ensemble_id: string;
+  content: string;
+  created_at: string;
+};
+
+// [Read] 특정 합주의 댓글 목록 가져오기
+export const useEnsembleComments = (ensembleId: string) => {
+  return useQuery({
+    queryKey: ["ensemble-comments", ensembleId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ensemble_comments")
+        .select("*")
+        .eq("ensemble_id", ensembleId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return (data as CommentRow[]) || [];
+    },
+  });
+};
+
+// [Create] 댓글 추가
+export const useAddEnsembleComment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      ensembleId, 
+      content 
+    }: { 
+      ensembleId: string; 
+      content: string;
+    }) => {
+      const { data, error } = await supabase
+        .from("ensemble_comments")
+        .insert({
+          ensemble_id: ensembleId,
+          content: content.trim(),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as CommentRow;
+    },
+    onSuccess: (_, variables) => {
+      // 해당 합주의 댓글 목록 갱신
+      queryClient.invalidateQueries({ 
+        queryKey: ["ensemble-comments", variables.ensembleId] 
+      });
+    },
+    onError: (error) => {
+      console.error("댓글 추가 실패:", error);
+      alert("댓글 등록에 실패했습니다.");
+    },
+  });
+};
+
+// [Delete] 댓글 삭제
+export const useDeleteEnsembleComment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      commentId, 
+      ensembleId 
+    }: { 
+      commentId: string; 
+      ensembleId: string;
+    }) => {
+      const { error } = await supabase
+        .from("ensemble_comments")
+        .delete()
+        .eq("id", commentId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ 
+        queryKey: ["ensemble-comments", variables.ensembleId] 
+      });
+    },
+    onError: (error) => {
+      console.error("댓글 삭제 실패:", error);
+      alert("댓글 삭제에 실패했습니다.");
+    },
+  });
+};
+
 // DB TIME 타입("HH:mm:ss")을 "HH:mm"으로 변환
 const formatTime = (time: string): string => {
   return time.slice(0, 5); // "14:30:00" → "14:30"
 };
 
+/*
+DB 데이터 변환 함수
+*/
 // DB에서 가져온 raw 데이터를 Ensemble 타입으로 가공
 const rowToEnsemble = (row: EnsembleRow): Ensemble => ({
   id: row.id,
@@ -74,6 +180,10 @@ const rowToConcert = (row: ConcertRow): Concert => ({
   updated_at: row.updated_at,
   memo: row.memo,
 });
+
+/**
+ * 합주, 공연 타입 => 예약 변환 함수
+ */
 
 const ensembleToReservation = (e: Ensemble): Reservation => ({
   id: e.id,
