@@ -39,11 +39,18 @@ export default function ReservationDetailModal({
 
   const handleDelete = () => {
     if (confirm("정말로 이 예약을 삭제하시겠습니까?")) {
-      deleteMutation.mutate(reservation.id, {
+      deleteMutation.mutate({ 
+          id: reservation.id, 
+          kind: reservation.kind || "ensemble" // kind가 없을 경우를 대비해 기본값 설정
+        }, {
         onSuccess: () => {
           onDeleteSuccess();
           onClose();
         },
+        onError: (error) => {
+            console.error("삭제 실패:", error);
+            alert("삭제에 실패했습니다. 다시 시도해주세요.");
+          }
       });
     }
   };
