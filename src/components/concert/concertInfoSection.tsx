@@ -6,6 +6,7 @@ import type { Concert, SetListItem } from "@/types/concert_detail";
 import { v4 as uuidv4 } from "uuid";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 import {
   Calendar,
   MapPin,
@@ -256,6 +257,7 @@ const startEdit = () => {
               BandMeet
             </span>
           </Link>
+          <GuideHelpButton />
       </header>
 
       {/* 메인 티켓 UI */}

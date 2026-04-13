@@ -7,6 +7,7 @@ import { Fragment } from "react"
 import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 
 type Props = {
   ensembleId: string;
@@ -371,6 +372,7 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
         <div className="flex items-center gap-3 relative">
             <div className="flex items-center gap-2">
                 {/* ✨ 링크 공유 버튼: 로그인 여부와 상관없이 항상 보임 */}
+                <GuideHelpButton />
                 <button
                 onClick={handleShareLink}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#58a6ff] hover:bg-[#58a6ff]/10 border border-[#30363d] rounded-lg transition-colors"

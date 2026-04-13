@@ -7,6 +7,7 @@ import { timeToMinutes } from "@/utils/date";
 import { supabase } from "@/utils/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 
 export default function ReservationEnsembleResult() {
     const queryClient = useQueryClient();
@@ -289,6 +290,7 @@ export default function ReservationEnsembleResult() {
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1a1a1a] border border-gray-700 text-xs text-gray-300">
             {userName}님
           </div>
+          <GuideHelpButton />
           <div className="h-9 w-9 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center">
             <User className="w-5 h-5 text-gray-400" />
           </div>

@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/utils/supabase"; // ✅ Supabase import
 import { v4 as uuidv4 } from "uuid";
 import Link from "next/link";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 
 import { Clock, Check, Plus, Trash2, MapPin, Music, LogOut } from "lucide-react";
 import {
@@ -160,6 +161,7 @@ export default function ConcertCreate() {
             BandMeet
           </span>
         </Link>
+        <GuideHelpButton />
       </header>
 
       <main className="w-full max-w-2xl bg-[#0d1117] rounded-3xl">

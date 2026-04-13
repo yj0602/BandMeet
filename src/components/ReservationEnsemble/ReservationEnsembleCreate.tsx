@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { timeToMinutes } from "@/utils/date";
 import { Clock, Check, MapPin} from "lucide-react";
 import Link from "next/link";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 import {
   startOfMonth,
   endOfMonth,
@@ -210,6 +211,7 @@ export default function ReservationEnsembleCreate() {
             BandMeet
           </div>
         </Link>
+        <GuideHelpButton />
       </header>
 
       {/* 메인 입력 섹션: 배경을 더 짙은 다크로 */}

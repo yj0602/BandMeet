@@ -7,6 +7,7 @@ import MiniCalendar from "@/components/MiniCalendar";
 import UpcomingReservations from "@/components/UpcomingReservations";
 import ReservationDetailModal from "@/components/ReservationDetailModal";
 import ReservationListView from "@/components/ReservationListView";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 import { Reservation } from "@/types";
 import { useRouter } from "next/navigation";
 import ReservationModal from "@/components/ReservationModal";
@@ -116,12 +117,15 @@ export default function Home() {
             </span>
           </Link>
         </h1>
-        <button
-          className="md:hidden p-2 text-gray-300 hover:text-white"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        >
-          {isMobileMenuOpen ? <X /> : <Menu />}
-        </button>
+        <div className="flex items-center gap-2">
+          <GuideHelpButton />
+          <button
+            className="md:hidden p-2 text-gray-300 hover:text-white"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">

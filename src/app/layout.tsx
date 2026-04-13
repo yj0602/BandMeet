@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import QueryProvider from "@/components/QueryProvider";
 import "./globals.css";
@@ -13,7 +13,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ✅ 배포/로컬 모두 안정적으로 동작하게 "확정 URL" 사용
 const siteUrl = "https://bandmeet.vercel.app";
 
 export const metadata: Metadata = {
@@ -23,7 +22,6 @@ export const metadata: Metadata = {
     template: "%s | BandMeet",
   },
   description: "밴드 일정 관리 플랫폼",
-
   openGraph: {
     title: "BandMeet",
     description: "밴드 일정 관리 플랫폼",
@@ -40,14 +38,12 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     type: "website",
   },
-
   twitter: {
     card: "summary_large_image",
     title: "BandMeet",
     description: "밴드 일정 관리 플랫폼",
     images: [`${siteUrl}/og-image.png`],
   },
-
   icons: {
     icon: "/favicon.ico",
   },

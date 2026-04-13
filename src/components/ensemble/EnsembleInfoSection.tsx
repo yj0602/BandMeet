@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import GuideHelpButton from "@/components/common/GuideHelpButton";
 import {
   useEnsembleComments, 
   useAddEnsembleComment, 
@@ -138,6 +139,7 @@ export default function EnsembleInfoSection({ ensemble, participants }: Props) {
           <span className="text-[#58a6ff] text-xl">📅</span>
             <span className="text-lg font-bold tracking-tight text-gray-100">BandMeet</span>
           </Link>
+          <GuideHelpButton />
         </div>
 
         {/* ✅ 제목 (모바일) */}
