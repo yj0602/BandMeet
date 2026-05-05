@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, Clock, Calendar as CalendarIcon, Check, User, PlusCircle } from "lucide-react";
+import { Users, Clock, Calendar as CalendarIcon, Check, User, PlusCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
 import { supabase } from "@/utils/supabase";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,7 @@ export default function ReservationEnsembleResult() {
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState("");
     const [excludedUsers, setExcludedUsers] = useState<Set<string>>(new Set());
+    const [visibleHeatmapWeekStart, setVisibleHeatmapWeekStart] = useState<string | null>(null);
 
     const [selectedTimes, setSelectedTimes] = useState<Set<string>>(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,6 +182,115 @@ export default function ReservationEnsembleResult() {
         return segments;
     }, [responses, excludedUsers]);
 
+    const activeResponses = useMemo(() => {
+        return responses.filter(r => !excludedUsers.has(r.userName));
+    }, [responses, excludedUsers]);
+
+    const heatmapTimes = useMemo(() => {
+        if (!ensembleData) return [];
+
+        const startTotal = timeToMinutes(ensembleData.startTime);
+        const endTotal = timeToMinutes(ensembleData.endTime);
+        const result: string[] = [];
+
+        for (let m = startTotal; m < endTotal; m += 30) {
+            const h = Math.floor(m / 60);
+            const min = m % 60;
+            result.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+        }
+
+        return result;
+    }, [ensembleData]);
+
+    const heatmapCounts = useMemo(() => {
+        const counts = new Map<string, { count: number; names: string[] }>();
+
+        activeResponses.forEach((response) => {
+            response.availableSlots.forEach((slot: string) => {
+                const current = counts.get(slot) ?? { count: 0, names: [] };
+                current.count += 1;
+                current.names.push(response.userName);
+                counts.set(slot, current);
+            });
+        });
+
+        return counts;
+    }, [activeResponses]);
+
+    const parseDbDate = (dateStr: string) => new Date(`${dateStr}T00:00:00`);
+
+    const formatDbDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
+    const getWeekStart = (dateStr: string) => {
+        const date = parseDbDate(dateStr);
+        date.setDate(date.getDate() - date.getDay());
+        return formatDbDate(date);
+    };
+
+    const addDaysToDbDate = (dateStr: string, daysToAdd: number) => {
+        const date = parseDbDate(dateStr);
+        date.setDate(date.getDate() + daysToAdd);
+        return formatDbDate(date);
+    };
+
+    useEffect(() => {
+        if (!ensembleData?.dates?.length) return;
+        setVisibleHeatmapWeekStart(getWeekStart([...ensembleData.dates].sort()[0]));
+    }, [ensembleData]);
+
+    const targetDateSet = useMemo(() => {
+        return new Set(ensembleData?.dates ?? []);
+    }, [ensembleData]);
+
+    const heatmapWeekBounds = useMemo(() => {
+        if (!ensembleData?.dates?.length) return null;
+        const sortedDates = [...ensembleData.dates].sort();
+        return {
+            first: getWeekStart(sortedDates[0]),
+            last: getWeekStart(sortedDates[sortedDates.length - 1]),
+        };
+    }, [ensembleData]);
+
+    const visibleHeatmapDays = useMemo(() => {
+        if (!visibleHeatmapWeekStart) return [];
+        const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+
+        return Array.from({ length: 7 }, (_, idx) => {
+            const fullDate = addDaysToDbDate(visibleHeatmapWeekStart, idx);
+            const [, month, day] = fullDate.split("-");
+
+            return {
+                fullDate,
+                dateDisplay: `${Number(month)}/${Number(day)}`,
+                weekDay: dayNames[idx],
+                isTargetDate: targetDateSet.has(fullDate),
+            };
+        });
+    }, [targetDateSet, visibleHeatmapWeekStart]);
+
+    const heatmapWeekLabel = useMemo(() => {
+        if (!visibleHeatmapDays.length) return "";
+        return `${visibleHeatmapDays[0].dateDisplay} - ${visibleHeatmapDays[6].dateDisplay}`;
+    }, [visibleHeatmapDays]);
+
+    const handleMoveHeatmapWeek = (direction: -1 | 1) => {
+        if (!visibleHeatmapWeekStart) return;
+        setVisibleHeatmapWeekStart(addDaysToDbDate(visibleHeatmapWeekStart, direction * 7));
+    };
+
+    const getAvailabilityColor = (count: number, total: number) => {
+        if (total === 0 || count === 0) return "#0d1117";
+
+        const ratio = count / total;
+        const opacity = 0.16 + ratio * 0.74;
+        return `rgba(47, 129, 247, ${opacity})`;
+    };
+
     // ✨ 개별 시간대 토글 함수
     const toggleTimeSelection = (timeRange: string) => {
         setSelectedTimes(prev => {
@@ -279,7 +389,7 @@ export default function ReservationEnsembleResult() {
   return (
     <div className="min-h-screen bg-[#0d1117] flex flex-col items-center p-6 text-[#c9d1d9] font-sans">
       {/* 상단 헤더 (Page 1, 2와 동일) */}
-      <header className="w-full max-w-2xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
+      <header className="w-full max-w-5xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
           <span className="text-[#58a6ff] text-xl">📅</span>
@@ -297,7 +407,7 @@ export default function ReservationEnsembleResult() {
         </div>
       </header>
 
-      <main className="w-full max-w-2xl bg-[#0d1117] rounded-3xl">
+      <main className="w-full max-w-5xl bg-[#0d1117] rounded-3xl">
         {/* 합주 제목 표시 */}
         <div className="mb-10 text-center">
           <div className="w-full max-w-md mx-auto text-3xl font-extrabold text-center bg-[#161b22] py-4 rounded-2xl text-[#f0f6fc]">
@@ -362,6 +472,124 @@ export default function ReservationEnsembleResult() {
                 })
               )}
             </div>
+          </section>
+
+          <section className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 shadow-xl h-fit">
+            <div className="flex items-center gap-2 mb-4 text-[#58a6ff]">
+              <CalendarIcon className="w-5 h-5" />
+              <h2 className="font-bold text-lg">결과 보기</h2>
+            </div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => handleMoveHeatmapWeek(-1)}
+                disabled={!heatmapWeekBounds || !visibleHeatmapWeekStart || visibleHeatmapWeekStart <= heatmapWeekBounds.first}
+                className="h-8 w-8 rounded-lg border border-[#30363d] bg-[#0d1117] text-[#8b949e] flex items-center justify-center transition hover:border-[#58a6ff] hover:text-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[#30363d] disabled:hover:text-[#8b949e]"
+                aria-label="이전 주"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="min-w-0 flex-1 text-center">
+                <div className="text-sm font-bold text-[#f0f6fc]">{heatmapWeekLabel}</div>
+                <div className="text-[11px] text-gray-500">{activeResponses.length}/{responses.length}명 기준</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleMoveHeatmapWeek(1)}
+                disabled={!heatmapWeekBounds || !visibleHeatmapWeekStart || visibleHeatmapWeekStart >= heatmapWeekBounds.last}
+                className="h-8 w-8 rounded-lg border border-[#30363d] bg-[#0d1117] text-[#8b949e] flex items-center justify-center transition hover:border-[#58a6ff] hover:text-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[#30363d] disabled:hover:text-[#8b949e]"
+                aria-label="다음 주"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {activeResponses.length === 0 ? (
+              <div className="text-center py-10 border-2 border-dashed border-gray-800 rounded-2xl">
+                <p className="text-gray-500 font-medium">표시할 멤버가 없습니다.</p>
+                <p className="text-xs text-gray-600 mt-2 font-light">참여 멤버를 다시 포함해보세요.</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto custom-scrollbar">
+                  <div
+                    className="grid text-xs"
+                    style={{
+                      gridTemplateColumns: `48px repeat(7, minmax(42px, 1fr))`,
+                      minWidth: "342px",
+                    }}
+                  >
+                    <div className="sticky left-0 z-10 bg-[#161b22] border-b border-gray-800" />
+                    {visibleHeatmapDays.map((day) => {
+                      return (
+                        <div
+                          key={day.fullDate}
+                          className={`border-b border-gray-800 pb-2 text-center text-[11px] text-gray-400 ${day.isTargetDate ? "" : "opacity-35"}`}
+                        >
+                          <div>{day.weekDay}</div>
+                          <div>{day.dateDisplay}</div>
+                        </div>
+                      );
+                    })}
+
+                    {heatmapTimes.map((time) => {
+                      const isHour = time.endsWith(":00");
+
+                      return (
+                        <Fragment key={time}>
+                          <div
+                            className={`sticky left-0 z-10 bg-[#161b22] h-5 pr-2 flex items-center justify-end text-[10px] text-gray-500 ${
+                              "border-t border-gray-800/20"
+                            }`}
+                          >
+                            {isHour ? time : ""}
+                          </div>
+
+                          {visibleHeatmapDays.map((day) => {
+                            const slot = `${day.fullDate} ${time}`;
+                            const availability = heatmapCounts.get(slot);
+                            const count = day.isTargetDate ? availability?.count ?? 0 : 0;
+                            const backgroundColor = day.isTargetDate
+                              ? getAvailabilityColor(count, activeResponses.length)
+                              : "rgba(13, 17, 23, 0.45)";
+
+                            return (
+                              <div
+                                key={slot}
+                                title={`${day.fullDate} ${time} · ${count}/${activeResponses.length}명${
+                                  availability?.names.length ? `: ${availability.names.join(", ")}` : ""
+                                }`}
+                                className={`h-5 border-l border-gray-800/60 transition-colors ${day.isTargetDate ? "" : "opacity-35"} ${
+                                  isHour ? "border-t-2 border-gray-500/80" : "border-t border-gray-800/20"
+                                }`}
+                                style={{ backgroundColor }}
+                              />
+                            );
+                          })}
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2 text-[10px] text-gray-500">
+                  <span>1/{activeResponses.length} 가능</span>
+                  <div className="flex h-5 flex-1 overflow-hidden rounded border border-gray-800">
+                    {Array.from({ length: activeResponses.length }, (_, idx) => {
+                      const count = idx + 1;
+                      return (
+                      <div
+                        key={count}
+                        className="flex-1 border-l border-[#161b22] first:border-l-0"
+                        title={`${count}/${activeResponses.length}명 가능`}
+                        style={{ backgroundColor: getAvailabilityColor(count, activeResponses.length) }}
+                      />
+                    )})}
+                  </div>
+                  <span>{activeResponses.length}/{activeResponses.length} 가능</span>
+                </div>
+              </>
+            )}
           </section>
 
           {/* 오른쪽: 결과 요약 및 확정 리스트 (임시) */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Check, User, PlusCircle } from "lucide-react";
+import { Check, User, PlusCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { timeToMinutes } from "@/utils/date";
 import { Fragment } from "react"
 import { useRouter } from "next/navigation";
@@ -34,6 +34,7 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
     const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
     const [isDragging, setIsDragging] = useState(false);
     const [dragMode, setDragMode] = useState<"add" | "remove" | null>(null);
+    const [visibleWeekStart, setVisibleWeekStart] = useState<string | null>(null);
     const [sessions, setSessions] = useState<string[]>([
         "보컬",
         "기타",
@@ -178,22 +179,71 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
         };
     }, [roomId, router]);
 
-    // Page 1에서 정한 날짜들로 days 배열 구성
+    const parseDbDate = (dateStr: string) => new Date(`${dateStr}T00:00:00`);
+
+    const formatDbDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
+    const getWeekStart = (dateStr: string) => {
+        const date = parseDbDate(dateStr);
+        date.setDate(date.getDate() - date.getDay());
+        return formatDbDate(date);
+    };
+
+    const addDaysToDbDate = (dateStr: string, daysToAdd: number) => {
+        const date = parseDbDate(dateStr);
+        date.setDate(date.getDate() + daysToAdd);
+        return formatDbDate(date);
+    };
+
+    useEffect(() => {
+        if (!ensembleData?.dates?.length) return;
+        setVisibleWeekStart(getWeekStart([...ensembleData.dates].sort()[0]));
+    }, [ensembleData]);
+
+    const targetDateSet = useMemo(() => {
+        return new Set(ensembleData?.dates ?? []);
+    }, [ensembleData]);
+
+    const weekBounds = useMemo(() => {
+        if (!ensembleData?.dates?.length) return null;
+        const sortedDates = [...ensembleData.dates].sort();
+        return {
+            first: getWeekStart(sortedDates[0]),
+            last: getWeekStart(sortedDates[sortedDates.length - 1]),
+        };
+    }, [ensembleData]);
+
     const days = useMemo(() => {
-        if (!ensembleData?.dates) return [];
+        if (!visibleWeekStart) return [];
         const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-        
-        return ensembleData.dates.map((d: string) => {
-            const date = new Date(d);
-            const month = d.split('-')[1].replace(/^0/, ''); // '02' -> '2'
-            const day = d.split('-')[2].replace(/^0/, '');   // '03' -> '3'
-            
+
+        return Array.from({ length: 7 }, (_, idx) => {
+            const fullDate = addDaysToDbDate(visibleWeekStart, idx);
+            const [, month, day] = fullDate.split("-");
+
             return {
-                dateDisplay: `${month}/${day}`, // '2/3' 형태
-                weekDay: dayNames[date.getDay()] // '화'
+                fullDate,
+                dateDisplay: `${Number(month)}/${Number(day)}`,
+                weekDay: dayNames[idx],
+                isTargetDate: targetDateSet.has(fullDate),
             };
         });
-    }, [ensembleData]);
+    }, [targetDateSet, visibleWeekStart]);
+
+    const weekRangeLabel = useMemo(() => {
+        if (!days.length) return "";
+        return `${days[0].dateDisplay} - ${days[6].dateDisplay}`;
+    }, [days]);
+
+    const handleMoveWeek = (direction: -1 | 1) => {
+        if (!visibleWeekStart) return;
+        setVisibleWeekStart(addDaysToDbDate(visibleWeekStart, direction * 7));
+    };
 
     // Page 1에서 정한 시간 범위(startTime ~ endTime)로 30분 단위 times 생성
     const times = useMemo(() => {
@@ -361,7 +411,7 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
   return (
     <div className="min-h-screen bg-[#0d1117] flex flex-col items-center p-6 text-[#c9d1d9] font-sans">
       {/* ===== 헤더 (page1과 동일 톤) ===== */}
-      <header className="w-full max-w-2xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
+      <header className="w-full max-w-5xl flex justify-between items-center mb-12 border-b border-[#30363d] pb-4">
         <Link href="/" className="flex items-center gap-2">
             <div className="flex items-center gap-2 font-bold text-xl text-[#f0f6fc]">
           <span className="text-[#58a6ff] text-xl">📅</span>
@@ -427,7 +477,7 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
         </div>
       </header>
 
-      <main className="w-full max-w-2xl">
+      <main className="w-full max-w-5xl">
         {/* 합주 제목 동적 표시 */}
         <div className="mb-10 text-center">
             <div className="inline-block w-full max-w-md text-3xl font-extrabold text-center bg-[#161b22] py-4 rounded-2xl text-[#f0f6fc]">
@@ -442,27 +492,52 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
               가능한 시간 선택
             </h3>
 
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <button
+                    type="button"
+                    onClick={() => handleMoveWeek(-1)}
+                    disabled={!weekBounds || !visibleWeekStart || visibleWeekStart <= weekBounds.first}
+                    className="h-9 w-9 rounded-lg border border-[#30363d] bg-[#161b22] text-[#8b949e] flex items-center justify-center transition hover:border-[#58a6ff] hover:text-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[#30363d] disabled:hover:text-[#8b949e]"
+                    aria-label="이전 주"
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="min-w-0 flex-1 text-center text-sm font-bold text-[#f0f6fc]">
+                    {weekRangeLabel}
+                </div>
+                <button
+                    type="button"
+                    onClick={() => handleMoveWeek(1)}
+                    disabled={!weekBounds || !visibleWeekStart || visibleWeekStart >= weekBounds.last}
+                    className="h-9 w-9 rounded-lg border border-[#30363d] bg-[#161b22] text-[#8b949e] flex items-center justify-center transition hover:border-[#58a6ff] hover:text-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[#30363d] disabled:hover:text-[#8b949e]"
+                    aria-label="다음 주"
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            </div>
+
             <div className="bg-[#161b22] border border-[#30363d] rounded-3xl p-3 md:p-3 shadow-xl overflow-hidden flex flex-col">
                 <div className="overflow-x-auto overflow-y-auto w-full max-h-[600px] custom-scrollbar">
                     <div 
                         className="grid text-xs border-b border-gray-800 bg-[#161b22] shrink-0"
                         style={{ 
-                            gridTemplateColumns: `60px repeat(${days.length}, 1fr)`,
-                            minWidth: `${60 + (days.length * 50)}px`,
+                            gridTemplateColumns: `60px repeat(7, minmax(46px, 1fr)) 60px`,
+                            minWidth: "442px",
                             width: "100%" 
                         }}
                     >
                         {/* [행 1] 날짜 헤더 영역 */}
                         <div className="sticky top-0 z-40 bg-[#161b22] border-b border-gray-800" />
-                        {days.map((d, idx) => (
+                        {days.map((d) => (
                             <div 
-                                key={`header-${idx}`} 
-                                className="sticky top-0 z-40 bg-[#161b22] flex flex-col items-center py-3 select-none"
+                                key={d.fullDate} 
+                                className={`sticky top-0 z-40 bg-[#161b22] flex flex-col items-center py-3 select-none border-b border-gray-800 ${d.isTargetDate ? "" : "opacity-35"}`}
                             >
                                 <span className="text-[10px] font-light text-gray-500 mb-0.5">{d.weekDay}</span>
                                 <span className="text-[12px] font-medium text-[#484f58]">{d.dateDisplay}</span>
                             </div>
                         ))}
+                        <div className="sticky top-0 z-40 bg-[#161b22] border-b border-gray-800" />
                     
 
                         {/* [행 2부터] 시간 및 그리드 셀 영역 */}
@@ -472,24 +547,24 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
                                 <Fragment key={`row-${t}`}> 
                                 {/* 시간 라벨 */}
                                 <div className={`
-                                    pr-2 flex items-start justify-end text-gray-500 
-                                    ${isHour ? "text-[10px] mt-[-6px]" : "invisible"}
+                                    h-6 pr-2 flex items-center justify-end text-[10px] text-gray-500
+                                    border-t border-gray-800/20
                                 `}>
                                     {t}
                                 </div>
 
                                 {/* 해당 시간대의 날짜별 셀들 */}
-                                {days.map((d, idx) => {
-                                    // d.dateDisplay(2/3) 대신 ensembleData에 들어있는 원본 날짜(2026-02-03)를 씁니다.
-                                    const fullDate = ensembleData.dates[idx]; 
+                                {days.map((d) => {
+                                    const fullDate = d.fullDate; 
                                     const cellKey = `${fullDate}-${t}`; // "2026-02-03-14:00" 형태 (안전)
                                     const selected = selectedCells.has(cellKey);
+                                    const canSelectCell = isLoggedIn && d.isTargetDate;
                                     return (
                                     <div
                                         key={cellKey}
-                                        data-cellkey={cellKey}
+                                        data-cellkey={canSelectCell ? cellKey : undefined}
                                         onPointerDown={(e) => {
-                                        if (!isLoggedIn) return;
+                                        if (!canSelectCell) return;
                                         e.currentTarget.setPointerCapture(e.pointerId);
                                         handleCellPointerDown(cellKey);
                                         }}
@@ -503,14 +578,20 @@ export default function ReservationEnsembleSelect({ ensembleId }: Props) {
                                         style={{ touchAction: "none", userSelect: "none" }}
                                         className={`
                                         h-6 border-l border-gray-800/60
-                                        ${isHour ? "border-t border-gray-600/50" : "border-t border-gray-800/20"}
-                                        ${!isLoggedIn ? "bg-gray-800/20 cursor-not-allowed" 
+                                        ${isHour ? "border-t-2 border-gray-500/70" : "border-t border-gray-800/20"}
+                                        ${!canSelectCell ? "bg-gray-800/20 cursor-not-allowed" 
                                             : selected ? "bg-blue-500 border-blue-400" 
                                             : "bg-[#0d1117] hover:bg-gray-700/50 cursor-pointer"}
                                         `}
                                     />
                                     );
                                 })}
+                                <div className={`
+                                    h-6 pl-2 flex items-center justify-start text-[10px] text-gray-500
+                                    border-t border-gray-800/20
+                                `}>
+                                    {t}
+                                </div>
                                 </Fragment>
                             );
                         })}

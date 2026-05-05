@@ -1,13 +1,9 @@
-// app/ensemble/select/[ensembleId]/page.tsx
+// app/ensembleCreate/select/page.tsx
 import ReservationEnsembleSelect
   from "@/components/ReservationEnsemble/ReservationEnsembleSelect";
 
-export default function EnsembleSelectPage({
-  params,
-}: {
-  params: { ensembleId: string };
-}) {
+export default function EnsembleSelectPage() {
   return (
-    <ReservationEnsembleSelect ensembleId={params.ensembleId} />
+    <ReservationEnsembleSelect ensembleId="" />
   );
 }
