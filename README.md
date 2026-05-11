@@ -1,141 +1,148 @@
-# 🎸 BandMeet
+# BandMeet
 
-밴드 동아리를 위한 스케줄러 웹 서비스입니다.  
-**모바일/PC 어디서든 실시간으로** 예약 현황(개인/합주/공연)을 확인하고 생성/관리할 수 있습니다.
+밴드 동아리의 개인 일정, 합주, 공연 일정을 한곳에서 확인하고 관리하는 예약 서비스입니다.<br />
+주간 시간표와 목록 화면을 함께 제공해 모바일과 데스크톱에서 빠르게 일정을 만들고 확인할 수 있습니다.
 
----
+## 주요 기능
 
-## 📌 프로젝트 소개
+- **예약 현황 조회**
+  - 주간 시간표 화면에서 날짜별 예약을 시간대별로 확인
+  - 목록 화면에서 다가오는 예약을 카드 형태로 확인
+  - 사이드바 미니 캘린더와 다가오는 예약 목록 제공
 
-- **서비스명**: BandMeet
-- **목적**: 동아리 일정(개인/합주/공연) 관리의 효율화
-- **대상**: 밴드 동아리 부원
+- **개인 일정 등록**
+  - FAB 메뉴에서 개인 연습, 회의, 약속 등 개인 일정을 바로 추가
+  - 날짜, 시작 시간, 종료 시간, 예약자, 사용 목적 입력
 
----
+- **합주 일정 생성**
+  - 합주 제목, 장소, 후보 날짜, 시간 범위를 설정
+  - 날짜를 선택하거나 드래그해 여러 후보일을 빠르게 지정
+  - 합주 선택 및 결과 화면을 통해 합주 일정을 확정하는 흐름 제공
 
-## ✨ 주요 기능
+- **공연 일정 생성**
+  - 공연 제목, 날짜, 장소, 시작/종료 시간 입력
+  - 셋리스트와 곡별 메모 등록
 
-### 1) 듀얼 뷰 모드 (Timetable / List)
-- **시간표 모드 (Timetable)**: 주간 시간표 그리드로 빈 시간을 직관적으로 파악
-- **목록 모드 (List)**: 다가오는 예약을 날짜별 카드 리스트로 확인
+- **예약 상세 조회 및 삭제**
+  - 시간표나 목록의 예약을 선택해 상세 내용을 확인
+  - 개인 일정, 합주, 공연 예약을 종류별로 구분해 삭제 처리
 
-### 2) 예약 생성 (개인 / 합주 / 공연)
-- 우측 하단 `+` 플로팅 버튼(FAB)에서 **개인/합주/공연** 예약 생성 진입
-- 예약 생성 후 메인 화면에 즉시 반영
+- **실시간 반영**
+  - Supabase Realtime과 TanStack Query 캐시 갱신을 이용해 예약 변경 사항을 화면에 반영
 
-### 3) 예약 상세 조회 및 삭제
-- 예약 카드를 클릭하면 요약/상세 모달 확인
-- 상세 페이지로 이동하여 더 많은 정보 확인 가능
-- 삭제 버튼으로 예약 취소
+## 기술 스택
 
-### 4) 중복 예약 방지
-- 이미 예약된 시간대에는 생성이 제한되도록 처리(중복 방지 로직)
+| 분류 | 기술 |
+| --- | --- |
+| Framework | Next.js 16 App Router |
+| Language | TypeScript |
+| UI | React 19, Tailwind CSS 4 |
+| Data Fetching | TanStack Query |
+| Backend / DB | Supabase |
+| Icons | lucide-react |
+| Date Utility | date-fns, date-fns-tz |
+| Deployment | Vercel |
 
-### 5) 모바일/PC 반응형 UI
-- **Mobile**: 터치 친화적 UI + 플로팅 버튼 중심 UX
-- **PC**: 넓은 화면에 최적화된 레이아웃과 가독성
+## 프로젝트 구조
 
----
+```text
+src/
+  app/
+    page.tsx                         # 메인 예약 화면
+    layout.tsx                       # 전역 레이아웃 및 Provider 구성
+    globals.css                      # 전역 스타일
+    event/[eventId]/page.tsx         # 예약 상세 페이지
+    concertCreate/new/page.tsx       # 공연 생성 페이지
+    ensembleCreate/new/page.tsx      # 합주 생성 페이지
+    ensembleCreate/select/page.tsx   # 합주 일정 선택 페이지
+    ensembleCreate/result/page.tsx   # 합주 결과 페이지
 
-## 🛠 기술 스택 (Tech Stack)
+  components/
+    WeeklyTimetable.tsx              # 주간 시간표
+    ReservationListView.tsx          # 예약 목록 화면
+    ReservationModal.tsx             # 개인 일정 추가 모달
+    ReservationDetailModal.tsx       # 예약 상세 모달
+    MiniCalendar.tsx                 # 미니 캘린더
+    UpcomingReservations.tsx         # 다가오는 예약 목록
+    QueryProvider.tsx                # TanStack Query Provider
+    RealtimeProvider.tsx             # Supabase Realtime Provider
+    ReservationConcert/              # 공연 생성 관련 컴포넌트
+    ReservationEnsemble/             # 합주 생성/선택/결과 컴포넌트
+    common/                          # 공통 UI
 
-| 분류 | 기술 | 설명 |
-| --- | --- | --- |
-| **Framework** | Next.js (App Router) | 라우팅/SSR 기반 React 프레임워크 |
-| **Language** | TypeScript | 정적 타입으로 안정성 확보 |
-| **Styling** | Tailwind CSS | 유틸리티 퍼스트 스타일링 |
-| **State / Server Cache** | TanStack Query(React Query) | 서버 상태 캐싱/동기화 및 CRUD |
-| **Database / BaaS** | Supabase (PostgreSQL) | 인증/DB/Realtime 기반 백엔드 |
-| **Deployment** | Vercel | Next.js 배포 최적화 |
+  hooks/
+    useReservations.ts               # 예약 조회, 생성, 수정, 삭제 훅
 
----
+  types/
+    index.ts                         # 공통 예약 타입
+    concert_detail.ts                # 공연 상세 타입
+    ensemble_detail.ts               # 합주 상세 타입
 
-## 📂 프로젝트 구조 (File Structure)
-
-현재 프로젝트(스크린샷 기준) 핵심 구조는 다음과 같습니다.
-
+  utils/
+    supabase.ts                      # 클라이언트용 Supabase 설정
+    supabase-server.ts               # 서버용 Supabase 설정
+    date.ts                          # 날짜/시간 유틸
+    colors.ts                        # 예약 종류별 색상 유틸
 ```
 
-src/
-├── app/
-│   ├── page.tsx                 # 메인 페이지 (뷰 모드, 사이드바/컨텐츠 조합)
-│   ├── layout.tsx               # 전체 레이아웃 (Provider, 폰트/전역 설정)
-│   ├── globals.css              # 전역 스타일/Tailwind 설정
-│   ├── event/                   # 예약 상세 페이지 라우트
-│   ├── concertCreate/           # 공연 생성 라우트
-│   └── ensembleCreate/          # 합주 생성 라우트 (new/select/result 등 단계형 화면)
-│
-├── components/
-│   ├── common/                  # 공통 UI 컴포넌트
-│   ├── concert/                 # 공연 관련 UI 섹션/컴포넌트
-│   ├── ensemble/                # 합주 관련 UI 섹션/컴포넌트
-│   ├── ReservationConcert/      # 공연 예약 생성/편집 관련 컴포넌트
-│   ├── ReservationEnsemble/     # 합주 예약 생성/편집 관련 컴포넌트
-│   ├── WeeklyTimetable.tsx      # [메인] 주간 시간표 그리드
-│   ├── ReservationListView.tsx  # [메인] 예약 리스트/카드 뷰
-│   ├── ReservationModal.tsx     # [기능] 개인 예약 생성 모달(필요 시)
-│   ├── ReservationDetailModal.tsx # [기능] 예약 상세 모달 (상세보기/삭제)
-│   ├── MiniCalendar.tsx         # [사이드] 날짜 이동용 미니 달력
-│   ├── UpcomingReservations.tsx # [사이드] 다가오는 예약 요약 리스트
-│   ├── QueryProvider.tsx        # React Query Client Provider
-│   └── RealtimeProvider.tsx     # Supabase Realtime 구독/동기화(사용 중인 경우)
-│
-├── hooks/
-│   └── useReservations.ts       # 예약 CRUD를 위한 React Query Hooks
-│
-├── utils/
-│   ├── supabase.ts              # Supabase 클라이언트 초기화
-│   ├── date.ts                  # 날짜 포맷/시간 계산 유틸
-│   └── colors.ts                # 예약 타입별 색상/표시 로직
-│
-└── types/
-└── index.ts                 # Reservation 등 공통 타입 정의
+## 시작하기
 
-````
+### 1. 저장소 클론
 
----
-
-## 🚀 설치 및 실행 방법 (Getting Started)
-
-### 1) 저장소 클론
 ```bash
-git clone https://github.com/your-username/mechanics-scheduler.git
-cd mechanics-scheduler
-````
+git clone https://github.com/yj0602/BandMeet.git
+cd BandMeet
+```
 
-### 2) 패키지 설치
+### 2. 패키지 설치
 
 ```bash
 npm install
 ```
 
-### 3) 환경 변수 설정 (.env.local)
+### 3. 환경 변수 설정
 
-프로젝트 루트에 `.env.local`을 만들고 아래 값을 채웁니다.
+프로젝트 루트에 `.env.local` 파일을 만들고 Supabase 값을 입력합니다.
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-### 4) 개발 서버 실행
+### 4. 개발 서버 실행
 
 ```bash
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000` 접속
+브라우저에서 `http://localhost:3000`으로 접속합니다.
 
----
+## 사용 가능한 스크립트
 
-## 📝 개발 주안점 (Dev Note)
+```bash
+npm run dev      # 개발 서버 실행
+npm run build    # 프로덕션 빌드
+npm run start    # 빌드 결과 실행
+npm run lint     # ESLint 검사
+```
 
-* **UX 최적화**: 모바일 주소창 높이 변동을 고려한 레이아웃 구성, 플로팅 버튼 기반의 빠른 생성 플로우
-* **데이터 무결성**: 예약 생성 시 중복 시간대 방지 로직으로 충돌 최소화
-* **실시간성(선택)**: Supabase Realtime 구독을 통해 변경 사항을 빠르게 반영하는 구조(RealtimeProvider)
+## Supabase 테이블
 
----
+현재 프론트엔드에서 사용하는 주요 테이블은 다음과 같습니다.
 
-## 📄 라이선스
+- `personal_events`: 개인 일정
+- `ensemble`: 확정된 합주 일정
+- `ensemble_rooms`: 합주 후보 날짜와 선택 흐름
+- `ensemble_comments`: 합주 댓글
+- `concerts`: 공연 일정과 셋리스트
 
-© 2026 Mechanics. All rights reserved.
+## 개발 메모
+
+- 예약 데이터는 `useReservations.ts`에서 개인 일정, 합주, 공연을 하나의 `Reservation` 형태로 변환해 사용합니다.
+- 메인 화면은 시간표 보기와 목록 보기를 전환할 수 있습니다.
+- 예약 변경 후에는 TanStack Query의 `reservations` 캐시를 무효화해 최신 데이터를 다시 가져옵니다.
+- 모바일에서는 사이드 메뉴와 FAB 메뉴를 중심으로 빠르게 예약을 확인하고 생성할 수 있도록 구성되어 있습니다.
+
+## 라이선스
+
+© 2026 BandMeet. All rights reserved.
